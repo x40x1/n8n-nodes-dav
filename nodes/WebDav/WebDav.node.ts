@@ -161,8 +161,7 @@ export class WebDav implements INodeType {
                                                         url: normalizePath(path),
                                                         // ensure raw bytes for binary output
                                                         returnFullResponse: true,
-                                                        responseType: 'arraybuffer',
-                                                } as any);
+                                                } as Parameters<typeof this.helpers.httpRequest>[0]);
 
                                                 const rawData =
                                                         (response.data ?? response.body) as
