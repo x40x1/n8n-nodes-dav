@@ -147,11 +147,12 @@ const putOperationFields: INodeProperties[] = [
 		required: true,
 	},
 	{
-		displayName: 'File Content',
-		name: 'fileContent',
+		displayName: 'Binary Property',
+		name: 'binaryPropertyName',
 		type: 'string',
-		default: '',
-		description: 'Content to upload to the WebDAV server. Can be binary data or text.',
+		default: 'data',
+		placeholder: 'data',
+		description: 'Name of the binary property that contains the file to upload (e.g. from a previous Read Binary File node).',
 		displayOptions: {
 			show: {
 				resource: ['file'],
@@ -159,20 +160,6 @@ const putOperationFields: INodeProperties[] = [
 			},
 		},
 		required: true,
-	},
-	{
-		displayName: 'Content Type',
-		name: 'contentType',
-		type: 'string',
-		default: 'application/octet-stream',
-		placeholder: 'text/plain',
-		description: 'MIME type of the file content',
-		displayOptions: {
-			show: {
-				resource: ['file'],
-				operation: ['put'],
-			},
-		},
 	},
 ];
 

@@ -57,6 +57,7 @@ export class WebDav implements INodeType {
 
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
 		const items = this.getInputData();
+		const returnItems: INodeExecutionData[] = [];
 
 		// Validate credentials.baseUrl early to avoid opaque "Invalid URL" errors
 		const creds = (await this.getCredentials('davApi')) as { baseUrl?: string };
@@ -74,8 +75,10 @@ export class WebDav implements INodeType {
 		// Helper to normalize and safely encode a DAV path (handles spaces and special chars)
 		const normalizePath = (p: string): string => {
 			if (!p || p === '/') return '/';
-			// If a full URL was mistakenly provided, pass through (requestDefaults.baseURL will be ignored)
-			if (/^https?:\/\//i.test(p)) return p;
+			// Disallow absolute external URLs to avoid SSRF/credential leakage
+			if (/^https?:\/\//i.test(p)) {
+				throw new NodeOperationError(this.getNode(), 'Absolute URLs are not allowed in path fields. Use a server-relative path starting with "/".');
+			}
 			const raw = p.startsWith('/') ? p.slice(1) : p;
 			const encoded = raw
 				.split('/')
@@ -94,7 +97,7 @@ export class WebDav implements INodeType {
 		for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
 			try {
 				const operation = this.getNodeParameter('operation', itemIndex) as string;
-				const item = items[itemIndex];
+				// const item = items[itemIndex];
 
 				// Helper to produce richer, user-friendly errors for n8n UI
 				const toFriendlyError = (e: any, u: string, resource: string) => {
@@ -126,6 +129,8 @@ export class WebDav implements INodeType {
 					try {
 						// Compose absolute URL when only a path is provided
 						const urlStr = String((opts as any)?.url ?? '');
+						// Preserve a display URL for friendly error messages
+						(opts as any).__displayUrl = /^https?:\/\//i.test(urlStr) ? urlStr : normalizePath(urlStr);
 						if (!/^https?:\/\//i.test(urlStr)) {
 							(opts as any).url = `${baseRoot}${normalizePath(urlStr)}`;
 							delete (opts as any).baseURL;
@@ -140,7 +145,7 @@ export class WebDav implements INodeType {
 						}
 						return await this.helpers.httpRequest(opts as any);
 					} catch (e: any) {
-						const u = (opts as any)?.url;
+						const u = (opts as any).__displayUrl ?? (opts as any)?.url;
 						const resource = this.getNodeParameter('resource', itemIndex) as string;
 						const friendly = toFriendlyError(e, u, resource);
 						throw new NodeOperationError(this.getNode(), friendly, { itemIndex });
@@ -154,35 +159,61 @@ export class WebDav implements INodeType {
 						const response = await doRequest({
 							method: 'GET',
 							url: normalizePath(path),
+							// ensure raw bytes for binary output
+							encoding: null as any,
 							returnFullResponse: true,
 						});
 
-						item.json.fileContent = response.data;
-						item.json.contentType = response.headers['content-type'];
-						item.json.contentLength = response.headers['content-length'];
-						item.json.lastModified = response.headers['last-modified'];
-						item.json.etag = response.headers['etag'];
+						const dataBuffer = Buffer.isBuffer(response.data)
+							? (response.data as Buffer)
+							: Buffer.from(response.data as any);
+						const contentType = response.headers['content-type'] as string | undefined;
+						const contentLength = response.headers['content-length'] as string | undefined;
+						const lastModified = response.headers['last-modified'] as string | undefined;
+						const etag = response.headers['etag'] as string | undefined;
+						const segs = normalizePath(path).split('/').filter(Boolean);
+						const fileName = segs[segs.length - 1] || 'file';
+						const helpersAny = this.helpers as any;
+						const binary = typeof helpersAny.prepareBinaryData === 'function'
+							? await helpersAny.prepareBinaryData(dataBuffer, fileName, contentType)
+							: { data: dataBuffer.toString('base64'), fileName, mimeType: contentType ?? 'application/octet-stream' } as any;
+
+						returnItems.push({
+							json: {
+								path,
+								contentType: contentType ?? 'application/octet-stream',
+								contentLength: contentLength ? Number(contentLength) : dataBuffer.length,
+								lastModified: lastModified ?? null,
+								etag: etag ?? null,
+								statusCode: response.status,
+							},
+							binary: { data: binary },
+						});
 						break;
 					}
 					case 'put': {
 						const path = this.getNodeParameter('path', itemIndex, '') as string;
-						const fileContent = this.getNodeParameter('fileContent', itemIndex, '') as string;
-						const contentType = this.getNodeParameter('contentType', itemIndex, 'application/octet-stream') as string;
+						const binaryPropertyName = this.getNodeParameter('binaryPropertyName', itemIndex, 'data') as string;
+						const inputItem = items[itemIndex];
+						if (!inputItem.binary || !inputItem.binary[binaryPropertyName]) {
+							throw new NodeOperationError(this.getNode(), `Input item is missing binary property "${binaryPropertyName}"`, { itemIndex });
+						}
+						const binData = await this.helpers.getBinaryDataBuffer(itemIndex, binaryPropertyName);
+						const contentType = inputItem.binary[binaryPropertyName].mimeType || 'application/octet-stream';
 
 						const response = await doRequest({
 							method: 'PUT',
 							url: normalizePath(path),
-							body: fileContent,
+							body: binData as unknown as Buffer,
 							headers: {
 								'Content-Type': contentType,
 							},
 							returnFullResponse: true,
 						});
 
-						item.json.success = true;
-						item.json.statusCode = response.status;
-						item.json.path = path;
-						item.json.contentType = contentType;
+						returnItems.push({
+							json: { success: response.status >= 200 && response.status < 300, statusCode: response.status, path, contentType },
+						});
 						break;
 					}
 					case 'propfind': {
@@ -237,9 +268,7 @@ export class WebDav implements INodeType {
 
 							return resources;
 						};
-
-						item.json.properties = parsePropfindResponse(response.data);
-						item.json.statusCode = response.status;
+						returnItems.push({ json: { properties: parsePropfindResponse(response.data), statusCode: response.status } });
 						break;
 					}
 					case 'mkcol': {
@@ -251,9 +280,7 @@ export class WebDav implements INodeType {
 							returnFullResponse: true,
 						});
 
-						item.json.success = response.status === 201;
-						item.json.statusCode = response.status;
-						item.json.path = path;
+						returnItems.push({ json: { success: response.status === 201, statusCode: response.status, path } });
 						break;
 					}
 					case 'delete': {
@@ -265,9 +292,7 @@ export class WebDav implements INodeType {
 							returnFullResponse: true,
 						});
 
-						item.json.success = response.status >= 200 && response.status < 300;
-						item.json.statusCode = response.status;
-						item.json.path = path;
+						returnItems.push({ json: { success: response.status >= 200 && response.status < 300, statusCode: response.status, path } });
 						break;
 					}
 					case 'move': {
@@ -275,22 +300,30 @@ export class WebDav implements INodeType {
 						const destination = this.getNodeParameter('destination', itemIndex, '') as string;
 						const overwrite = this.getNodeParameter('overwrite', itemIndex, false) as boolean;
 
+						// Allow absolute destination only if same-origin as base URL
+						let destinationHeader: string;
+						if (/^https?:\/\//i.test(destination)) {
+							const destUrl = new URL(destination);
+							const base = new URL(baseRoot);
+							if (destUrl.origin !== base.origin) {
+								throw new NodeOperationError(this.getNode(), 'Destination must be on the same server as the Base URL');
+							}
+							destinationHeader = destUrl.toString();
+						} else {
+							destinationHeader = `${baseRoot}${normalizePath(destination)}`;
+						}
+
 						const response = await doRequest({
 							method: 'MOVE' as any,
 							url: normalizePath(path),
 							headers: {
-								Destination: /^https?:\/\//i.test(destination)
-									? destination
-									: `${baseRoot}${normalizePath(destination)}`,
+								Destination: destinationHeader,
 								Overwrite: overwrite ? 'T' : 'F',
 							},
 							returnFullResponse: true,
 						});
 
-						item.json.success = response.status >= 200 && response.status < 300;
-						item.json.statusCode = response.status;
-						item.json.sourcePath = path;
-						item.json.destinationPath = destination;
+						returnItems.push({ json: { success: response.status >= 200 && response.status < 300, statusCode: response.status, sourcePath: path, destinationPath: destination } });
 						break;
 					}
 					case 'copy': {
@@ -298,22 +331,29 @@ export class WebDav implements INodeType {
 						const destination = this.getNodeParameter('destination', itemIndex, '') as string;
 						const overwrite = this.getNodeParameter('overwrite', itemIndex, false) as boolean;
 
+						let destinationHeader: string;
+						if (/^https?:\/\//i.test(destination)) {
+							const destUrl = new URL(destination);
+							const base = new URL(baseRoot);
+							if (destUrl.origin !== base.origin) {
+								throw new NodeOperationError(this.getNode(), 'Destination must be on the same server as the Base URL');
+							}
+							destinationHeader = destUrl.toString();
+						} else {
+							destinationHeader = `${baseRoot}${normalizePath(destination)}`;
+						}
+
 						const response = await doRequest({
 							method: 'COPY' as any,
 							url: normalizePath(path),
 							headers: {
-								Destination: /^https?:\/\//i.test(destination)
-									? destination
-									: `${baseRoot}${normalizePath(destination)}`,
+								Destination: destinationHeader,
 								Overwrite: overwrite ? 'T' : 'F',
 							},
 							returnFullResponse: true,
 						});
 
-						item.json.success = response.status >= 200 && response.status < 300;
-						item.json.statusCode = response.status;
-						item.json.sourcePath = path;
-						item.json.destinationPath = destination;
+						returnItems.push({ json: { success: response.status >= 200 && response.status < 300, statusCode: response.status, sourcePath: path, destinationPath: destination } });
 						break;
 					}
 					default:
@@ -322,21 +362,17 @@ export class WebDav implements INodeType {
 
 			} catch (error) {
 				if (this.continueOnFail()) {
-					items.push({
-						json: this.getInputData(itemIndex)[0].json,
-						error,
-						pairedItem: itemIndex
-					});
+					returnItems.push({ json: { error: (error as Error).message }, pairedItem: itemIndex });
 				} else {
-					if (error.context) {
-						error.context.itemIndex = itemIndex;
+					if ((error as any).context) {
+						(error as any).context.itemIndex = itemIndex;
 						throw error;
 					}
-					throw new NodeOperationError(this.getNode(), error, { itemIndex });
+					throw new NodeOperationError(this.getNode(), error as any, { itemIndex });
 				}
 			}
 		}
 
-		return [items];
+		return [returnItems];
 	}
 }

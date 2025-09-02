@@ -75,7 +75,10 @@ export class CalDav implements INodeType {
 		// Helper to normalize and encode DAV paths (handles spaces and special chars)
 		const normalizePath = (p: string): string => {
 			if (!p || p === '/') return '/';
-			if (/^https?:\/\//i.test(p)) return p; // full URL passthrough
+			// Disallow absolute external URLs to avoid SSRF/credential leakage
+			if (/^https?:\/\//i.test(p)) {
+				throw new NodeOperationError(this.getNode(), 'Absolute URLs are not allowed in path fields. Use a server-relative path starting with "/".');
+			}
 			const raw = p.startsWith('/') ? p.slice(1) : p;
 			const encoded = raw
 				.split('/')
@@ -116,6 +119,7 @@ export class CalDav implements INodeType {
 					try {
 						// Compose absolute URL when only a path is provided
 						const urlStr = String((opts as any)?.url ?? '');
+						(opts as any).__displayUrl = /^https?:\/\//i.test(urlStr) ? urlStr : normalizePath(urlStr);
 						if (!/^https?:\/\//i.test(urlStr)) {
 							(opts as any).url = `${baseRoot}${normalizePath(urlStr)}`;
 							delete (opts as any).baseURL;
@@ -129,7 +133,7 @@ export class CalDav implements INodeType {
 						}
 						return await this.helpers.httpRequest(opts as any);
 					} catch (e: any) {
-						const u = (opts as any)?.url;
+						const u = (opts as any).__displayUrl ?? (opts as any)?.url;
 						const resource = this.getNodeParameter('resource', itemIndex) as string;
 						const friendly = toFriendlyError(e, u, resource);
 						throw new NodeOperationError(this.getNode(), friendly, { itemIndex });
