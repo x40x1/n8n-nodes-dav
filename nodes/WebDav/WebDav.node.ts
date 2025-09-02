@@ -1,8 +1,10 @@
 import type {
-	IExecuteFunctions,
-	INodeExecutionData,
-	INodeType,
-	INodeTypeDescription,
+        IExecuteFunctions,
+        ILoadOptionsFunctions,
+        INodeExecutionData,
+        INodePropertyOptions,
+        INodeType,
+        INodeTypeDescription,
 } from 'n8n-workflow';
 import { NodeConnectionType, NodeOperationError } from 'n8n-workflow';
 import { webDavFields, webDavOperations } from './WebDavDescription';
@@ -52,8 +54,123 @@ export class WebDav implements INodeType {
 			},
 			...webDavOperations,
 			...webDavFields,
-		],
-	};
+                ],
+        };
+
+        methods = {
+                loadOptions: {
+                        async listDirectories(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
+                                const creds = (await this.getCredentials('davApi')) as { baseUrl: string };
+                                const baseUrl = creds.baseUrl.replace(/\/$/, '');
+                                const basePath = baseUrl.replace(/^https?:\/\/[^/]+/i, '');
+                                let directory = (this.getCurrentNodeParameter('directory') as string) || '/';
+                                if (!directory.startsWith('/')) directory = `/${directory}`;
+
+                                const xmlBody = `<?xml version="1.0" encoding="utf-8"?>
+<D:propfind xmlns:D="DAV:">
+        <D:prop>
+                <D:resourcetype/>
+                <D:displayname/>
+        </D:prop>
+</D:propfind>`;
+
+                                const options = {
+                                        method: 'PROPFIND' as any,
+                                        url: `${baseUrl}${directory}`,
+                                        headers: { Depth: '1', 'Content-Type': 'application/xml' },
+                                        body: xmlBody,
+                                } as any;
+
+                                const helpers: any = this.helpers;
+                                let response: any;
+                                if (typeof helpers.httpRequestWithAuthentication === 'function') {
+                                        response = await helpers.httpRequestWithAuthentication.call(this, 'davApi', options);
+                                } else if (typeof helpers.requestWithAuthentication === 'function') {
+                                        response = await helpers.requestWithAuthentication.call(this, 'davApi', options);
+                                } else {
+                                        response = await this.helpers.httpRequest(options);
+                                }
+
+                                const xmlData = (response.data ?? response.body ?? response) as string;
+                                const dirs: INodePropertyOptions[] = [];
+                                const responseRegex = /<D:response[^>]*>(.*?)<\/D:response>/gs;
+                                let match;
+                                while ((match = responseRegex.exec(xmlData)) !== null) {
+                                        const resXml = match[1];
+                                        const hrefMatch = resXml.match(/<D:href[^>]*>(.*?)<\/D:href>/);
+                                        const resTypeMatch = resXml.match(/<D:resourcetype[^>]*>(.*?)<\/D:resourcetype>/);
+                                        const displayNameMatch = resXml.match(/<D:displayname[^>]*>(.*?)<\/D:displayname>/);
+                                        if (hrefMatch && resTypeMatch?.[1]?.includes('collection')) {
+                                                const href = decodeURIComponent(hrefMatch[1]);
+                                                if (href === directory || href === `${directory}/`) continue;
+                                                const relative = href.startsWith(basePath)
+                                                        ? href.slice(basePath.length)
+                                                        : href;
+                                                dirs.push({
+                                                        name: displayNameMatch ? displayNameMatch[1] : relative,
+                                                        value: relative.replace(/\/$/, ''),
+                                                });
+                                        }
+                                }
+                                return dirs;
+                        },
+                        async listFiles(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
+                                const creds = (await this.getCredentials('davApi')) as { baseUrl: string };
+                                const baseUrl = creds.baseUrl.replace(/\/$/, '');
+                                const basePath = baseUrl.replace(/^https?:\/\/[^/]+/i, '');
+                                let directory = (this.getCurrentNodeParameter('directory') as string) || '/';
+                                if (!directory.startsWith('/')) directory = `/${directory}`;
+
+                                const xmlBody = `<?xml version="1.0" encoding="utf-8"?>
+<D:propfind xmlns:D="DAV:">
+        <D:prop>
+                <D:resourcetype/>
+                <D:displayname/>
+        </D:prop>
+</D:propfind>`;
+
+                                const options = {
+                                        method: 'PROPFIND' as any,
+                                        url: `${baseUrl}${directory}`,
+                                        headers: { Depth: '1', 'Content-Type': 'application/xml' },
+                                        body: xmlBody,
+                                } as any;
+
+                                const helpers: any = this.helpers;
+                                let response: any;
+                                if (typeof helpers.httpRequestWithAuthentication === 'function') {
+                                        response = await helpers.httpRequestWithAuthentication.call(this, 'davApi', options);
+                                } else if (typeof helpers.requestWithAuthentication === 'function') {
+                                        response = await helpers.requestWithAuthentication.call(this, 'davApi', options);
+                                } else {
+                                        response = await this.helpers.httpRequest(options);
+                                }
+
+                                const xmlData = (response.data ?? response.body ?? response) as string;
+                                const files: INodePropertyOptions[] = [];
+                                const responseRegex = /<D:response[^>]*>(.*?)<\/D:response>/gs;
+                                let match;
+                                while ((match = responseRegex.exec(xmlData)) !== null) {
+                                        const resXml = match[1];
+                                        const hrefMatch = resXml.match(/<D:href[^>]*>(.*?)<\/D:href>/);
+                                        const resTypeMatch = resXml.match(/<D:resourcetype[^>]*>(.*?)<\/D:resourcetype>/);
+                                        const displayNameMatch = resXml.match(/<D:displayname[^>]*>(.*?)<\/D:displayname>/);
+                                        if (hrefMatch && !resTypeMatch?.[1]?.includes('collection')) {
+                                                const href = decodeURIComponent(hrefMatch[1]);
+                                                if (href === directory || href === `${directory}/`) continue;
+                                                const relative = href.startsWith(basePath)
+                                                        ? href.slice(basePath.length)
+                                                        : href;
+                                                files.push({
+                                                        name: displayNameMatch ? displayNameMatch[1] : relative,
+                                                        value: relative,
+                                                });
+                                        }
+                                }
+                                return files;
+                        },
+                },
+        };
 
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
 		const items = this.getInputData();
@@ -213,6 +330,7 @@ export class WebDav implements INodeType {
                                                         contentType,
                                                 );
 
+                                                const statusCode = response.statusCode ?? response.status;
                                                 returnItems.push({
                                                         json: {
                                                                 path,
@@ -222,13 +340,13 @@ export class WebDav implements INodeType {
                                                                         : dataBuffer.length,
                                                                 lastModified: lastModified ?? null,
                                                                 etag: etag ?? null,
-                                                                statusCode: response.status,
+                                                                statusCode,
                                                         },
                                                         binary: { data: binary },
                                                 });
                                                 break;
                                         }
-					case 'put': {
+                                        case 'put': {
 						const path = this.getNodeParameter('path', itemIndex, '') as string;
 						const binaryPropertyName = this.getNodeParameter('binaryPropertyName', itemIndex, 'data') as string;
 						const inputItem = items[itemIndex];
@@ -248,12 +366,18 @@ export class WebDav implements INodeType {
 							returnFullResponse: true,
 						});
 
-						returnItems.push({
-							json: { success: response.status >= 200 && response.status < 300, statusCode: response.status, path, contentType },
-						});
-						break;
-					}
-					case 'propfind': {
+                                                const statusCode = response.statusCode ?? response.status;
+                                                returnItems.push({
+                                                        json: {
+                                                                success: statusCode >= 200 && statusCode < 300,
+                                                                statusCode,
+                                                                path,
+                                                                contentType,
+                                                        },
+                                                });
+                                                break;
+                                        }
+                                        case 'propfind': {
 						const path = this.getNodeParameter('path', itemIndex, '/') as string;
 						const depth = this.getNodeParameter('depth', itemIndex, '1') as string;
 
@@ -305,10 +429,17 @@ export class WebDav implements INodeType {
 
 							return resources;
 						};
-						returnItems.push({ json: { properties: parsePropfindResponse(response.data), statusCode: response.status } });
-						break;
-					}
-					case 'mkcol': {
+                                                const bodyData = (response.data ?? response.body) as string;
+                                                const statusCode = response.statusCode ?? response.status;
+                                                returnItems.push({
+                                                        json: {
+                                                                properties: parsePropfindResponse(bodyData),
+                                                                statusCode,
+                                                        },
+                                                });
+                                                break;
+                                        }
+                                        case 'mkcol': {
 						const path = this.getNodeParameter('path', itemIndex, '') as string;
 
 						const response = await doRequest({
@@ -317,10 +448,17 @@ export class WebDav implements INodeType {
 							returnFullResponse: true,
 						});
 
-						returnItems.push({ json: { success: response.status === 201, statusCode: response.status, path } });
-						break;
-					}
-					case 'delete': {
+                                                const statusCode = response.statusCode ?? response.status;
+                                                returnItems.push({
+                                                        json: {
+                                                                success: statusCode === 201,
+                                                                statusCode,
+                                                                path,
+                                                        },
+                                                });
+                                                break;
+                                        }
+                                        case 'delete': {
 						const path = this.getNodeParameter('path', itemIndex, '') as string;
 
 						const response = await doRequest({
@@ -329,10 +467,17 @@ export class WebDav implements INodeType {
 							returnFullResponse: true,
 						});
 
-						returnItems.push({ json: { success: response.status >= 200 && response.status < 300, statusCode: response.status, path } });
-						break;
-					}
-					case 'move': {
+                                                const statusCode = response.statusCode ?? response.status;
+                                                returnItems.push({
+                                                        json: {
+                                                                success: statusCode >= 200 && statusCode < 300,
+                                                                statusCode,
+                                                                path,
+                                                        },
+                                                });
+                                                break;
+                                        }
+                                        case 'move': {
 						const path = this.getNodeParameter('path', itemIndex, '') as string;
 						const destination = this.getNodeParameter('destination', itemIndex, '') as string;
 						const overwrite = this.getNodeParameter('overwrite', itemIndex, false) as boolean;
@@ -360,10 +505,18 @@ export class WebDav implements INodeType {
 							returnFullResponse: true,
 						});
 
-						returnItems.push({ json: { success: response.status >= 200 && response.status < 300, statusCode: response.status, sourcePath: path, destinationPath: destination } });
-						break;
-					}
-					case 'copy': {
+                                                const statusCode = response.statusCode ?? response.status;
+                                                returnItems.push({
+                                                        json: {
+                                                                success: statusCode >= 200 && statusCode < 300,
+                                                                statusCode,
+                                                                sourcePath: path,
+                                                                destinationPath: destination,
+                                                        },
+                                                });
+                                                break;
+                                        }
+                                        case 'copy': {
 						const path = this.getNodeParameter('path', itemIndex, '') as string;
 						const destination = this.getNodeParameter('destination', itemIndex, '') as string;
 						const overwrite = this.getNodeParameter('overwrite', itemIndex, false) as boolean;
@@ -390,9 +543,17 @@ export class WebDav implements INodeType {
 							returnFullResponse: true,
 						});
 
-						returnItems.push({ json: { success: response.status >= 200 && response.status < 300, statusCode: response.status, sourcePath: path, destinationPath: destination } });
-						break;
-					}
+                                                const statusCode = response.statusCode ?? response.status;
+                                                returnItems.push({
+                                                        json: {
+                                                                success: statusCode >= 200 && statusCode < 300,
+                                                                statusCode,
+                                                                sourcePath: path,
+                                                                destinationPath: destination,
+                                                        },
+                                                });
+                                                break;
+                                        }
 					default:
 						throw new NodeOperationError(this.getNode(), `Operation ${operation} not supported`);
 				}

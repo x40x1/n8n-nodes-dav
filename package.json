@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-dav",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "description": "Custom n8n nodes for WebDAV, CalDAV, and CardDAV protocols",
   "keywords": [
     "n8n-community-node-package",

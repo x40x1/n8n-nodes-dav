@@ -101,21 +101,24 @@ const getCalendarsOperationFields: INodeProperties[] = [
 ];
 
 const getEventsOperationFields: INodeProperties[] = [
-	{
-		displayName: 'Calendar Path',
-		name: 'calendarPath',
-		type: 'string',
-		default: '',
-		placeholder: '/calendars/user/calendar/',
-		description: 'Path to the specific calendar. Start with "/". Spaces and special characters are auto-encoded.',
-		displayOptions: {
-			show: {
-				resource: ['calendar'],
-				operation: ['getEvents'],
-			},
-		},
-		required: true,
-	},
+        {
+                displayName: 'Calendar Name or ID',
+                name: 'calendarPath',
+                type: 'options',
+                noDataExpression: true,
+                typeOptions: { loadOptionsMethod: 'getCalendars' },
+                default: '',
+                placeholder: '/calendars/user/calendar/',
+                description:
+                        'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+                displayOptions: {
+                        show: {
+                                resource: ['calendar'],
+                                operation: ['getEvents'],
+                        },
+                },
+                required: true,
+        },
 	{
 		displayName: 'Time Range',
 		name: 'timeRange',
@@ -188,21 +191,24 @@ const getEventsOperationFields: INodeProperties[] = [
 ];
 
 const createEventOperationFields: INodeProperties[] = [
-	{
-		displayName: 'Calendar Path',
-		name: 'calendarPath',
-		type: 'string',
-		default: '',
-		placeholder: '/calendars/user/calendar/',
-		description: 'Path to the calendar where the event will be created. Start with "/". Spaces and special characters are auto-encoded.',
-		displayOptions: {
-			show: {
-				resource: ['calendar'],
-				operation: ['createEvent'],
-			},
-		},
-		required: true,
-	},
+        {
+                displayName: 'Calendar Name or ID',
+                name: 'calendarPath',
+                type: 'options',
+                noDataExpression: true,
+                typeOptions: { loadOptionsMethod: 'getCalendars' },
+                default: '',
+                placeholder: '/calendars/user/calendar/',
+                description:
+                        'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+                displayOptions: {
+                        show: {
+                                resource: ['calendar'],
+                                operation: ['createEvent'],
+                        },
+                },
+                required: true,
+        },
 	{
 		displayName: 'Event ID',
 		name: 'eventId',
@@ -235,21 +241,24 @@ const createEventOperationFields: INodeProperties[] = [
 ];
 
 const updateEventOperationFields: INodeProperties[] = [
-	{
-		displayName: 'Calendar Path',
-		name: 'calendarPath',
-		type: 'string',
-		default: '',
-		placeholder: '/calendars/user/calendar/',
-		description: 'Path to the calendar containing the event. Start with "/". Spaces and special characters are auto-encoded.',
-		displayOptions: {
-			show: {
-				resource: ['calendar'],
-				operation: ['updateEvent'],
-			},
-		},
-		required: true,
-	},
+        {
+                displayName: 'Calendar Name or ID',
+                name: 'calendarPath',
+                type: 'options',
+                noDataExpression: true,
+                typeOptions: { loadOptionsMethod: 'getCalendars' },
+                default: '',
+                placeholder: '/calendars/user/calendar/',
+                description:
+                        'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+                displayOptions: {
+                        show: {
+                                resource: ['calendar'],
+                                operation: ['updateEvent'],
+                        },
+                },
+                required: true,
+        },
 	{
 		displayName: 'Event ID',
 		name: 'eventId',
@@ -282,21 +291,24 @@ const updateEventOperationFields: INodeProperties[] = [
 ];
 
 const deleteEventOperationFields: INodeProperties[] = [
-	{
-		displayName: 'Calendar Path',
-		name: 'calendarPath',
-		type: 'string',
-		default: '',
-		placeholder: '/calendars/user/calendar/',
-		description: 'Path to the calendar containing the event. Start with "/". Spaces and special characters are auto-encoded.',
-		displayOptions: {
-			show: {
-				resource: ['calendar'],
-				operation: ['deleteEvent'],
-			},
-		},
-		required: true,
-	},
+        {
+                displayName: 'Calendar Name or ID',
+                name: 'calendarPath',
+                type: 'options',
+                noDataExpression: true,
+                typeOptions: { loadOptionsMethod: 'getCalendars' },
+                default: '',
+                placeholder: '/calendars/user/calendar/',
+                description:
+                        'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+                displayOptions: {
+                        show: {
+                                resource: ['calendar'],
+                                operation: ['deleteEvent'],
+                        },
+                },
+                required: true,
+        },
 	{
 		displayName: 'Event ID',
 		name: 'eventId',
