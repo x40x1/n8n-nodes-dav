@@ -87,12 +87,7 @@ export class WebDav implements INodeType {
                                         body: xmlBody,
                                 } as any;
 
-                                interface Helpers {
-                                        httpRequestWithAuthentication?: (this: ILoadOptionsFunctions, credName: string, options: object) => Promise<any>;
-                                        requestWithAuthentication?: (this: ILoadOptionsFunctions, credName: string, options: object) => Promise<any>;
-                                        httpRequest: (options: object) => Promise<any>;
-                                }
-                                const helpers = this.helpers as Helpers;
+                                const helpers: any = this.helpers;
                                 let response: any;
                                 if (typeof helpers.httpRequestWithAuthentication === 'function') {
                                         response = await helpers.httpRequestWithAuthentication.call(this, 'davApi', options);
