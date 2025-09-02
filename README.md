@@ -1,48 +1,178 @@
-![Banner image](https://user-images.githubusercontent.com/10284570/173569848-c624317f-42b1-45a6-ab09-f0ea3c247648.png)
+# n8n-nodes-dav
 
-# n8n-nodes-starter
+This is an n8n community node. It lets you use WebDAV, CalDAV, and CardDAV protocols in your n8n workflows.
 
-This repo contains example nodes to help you get started building your own custom integrations for [n8n](https://n8n.io). It includes the node linter and other dependencies.
+WebDAV, CalDAV, and CardDAV are standard protocols for accessing and managing files, calendars, and address books on remote servers. These nodes enable seamless integration with DAV-compliant servers for comprehensive data synchronization and management.
 
-To make your custom node available to the community, you must create it as an npm package, and [submit it to the npm registry](https://docs.npmjs.com/packages-and-modules/contributing-packages-to-the-registry).
+[n8n](https://n8n.io/) is a [fair-code licensed](https://docs.n8n.io/reference/license/) workflow automation platform.
 
-If you would like your node to be available on n8n cloud you can also [submit your node for verification](https://docs.n8n.io/integrations/creating-nodes/deploy/submit-community-nodes/).
+[Installation](#installation)  
+[Operations](#operations)  
+[Credentials](#credentials)  
+[Compatibility](#compatibility)  
+[Usage](#usage)  
+[Resources](#resources)  
+[Version history](#version-history)
 
-## Prerequisites
+## Installation
 
-You need the following installed on your development machine:
+Follow the [installation guide](https://docs.n8n.io/integrations/community-nodes/installation/) in the n8n community nodes documentation.
 
-* [git](https://git-scm.com/downloads)
-* Node.js and npm. Minimum version Node 20. You can find instructions on how to install both using nvm (Node Version Manager) for Linux, Mac, and WSL [here](https://github.com/nvm-sh/nvm). For Windows users, refer to Microsoft's guide to [Install NodeJS on Windows](https://docs.microsoft.com/en-us/windows/dev-environment/javascript/nodejs-on-windows).
-* Install n8n with:
-  ```
-  npm install n8n -g
-  ```
-* Recommended: follow n8n's guide to [set up your development environment](https://docs.n8n.io/integrations/creating-nodes/build/node-development-environment/).
+### Manual Installation
 
-## Using this starter
+1. Clone the repository:
+```bash
+git clone https://github.com/x40x1/n8n-nodes-dav.git
+cd n8n-nodes-dav
+```
 
-These are the basic steps for working with the starter. For detailed guidance on creating and publishing nodes, refer to the [documentation](https://docs.n8n.io/integrations/creating-nodes/).
+2. Install dependencies:
+```bash
+npm install
+```
 
-1. [Generate a new repository](https://github.com/n8n-io/n8n-nodes-starter/generate) from this template repository.
-2. Clone your new repo:
-   ```
-   git clone https://github.com/<your organization>/<your-repo-name>.git
-   ```
-3. Run `npm i` to install dependencies.
-4. Open the project in your editor.
-5. Browse the examples in `/nodes` and `/credentials`. Modify the examples, or replace them with your own nodes.
-6. Update the `package.json` to match your details.
-7. Run `npm run lint` to check for errors or `npm run lintfix` to automatically fix errors when possible.
-8. Test your node locally. Refer to [Run your node locally](https://docs.n8n.io/integrations/creating-nodes/test/run-node-locally/) for guidance.
-9. Replace this README with documentation for your node. Use the [README_TEMPLATE](README_TEMPLATE.md) to get started.
-10. Update the LICENSE file to use your details.
-11. [Publish](https://docs.npmjs.com/packages-and-modules/contributing-packages-to-the-registry) your package to npm.
+3. Build the project:
+```bash
+npm run build
+```
 
-## More information
+## Operations
 
-Refer to our [documentation on creating nodes](https://docs.n8n.io/integrations/creating-nodes/) for detailed information on building your own nodes.
+### WebDAV Node
+- **Download File**: Retrieve files from the DAV server
+- **Upload File**: Upload files to the DAV server
+- **Get Properties**: List directory contents and file properties
+- **Create Directory**: Create new directories
+- **Delete Resource**: Remove files or directories
+- **Move Resource**: Move files/directories to new locations
+- **Copy Resource**: Copy files/directories
 
-## License
+### CalDAV Node
+- **Get Calendars**: List available calendars
+- **Get Events**: Retrieve calendar events with optional time filtering
+- **Create Event**: Add new calendar events
+- **Update Event**: Modify existing events
+- **Delete Event**: Remove calendar events
 
-[MIT](https://github.com/n8n-io/n8n-nodes-starter/blob/master/LICENSE.md)
+### CardDAV Node
+- **Get Address Books**: List available address books
+- **Get Contacts**: Retrieve contacts with optional filtering
+- **Create Contact**: Add new contacts
+- **Update Contact**: Modify existing contacts
+- **Delete Contact**: Remove contacts
+
+## Credentials
+
+The nodes require authentication with your DAV server. You need to create a "DAV API" credential in n8n.
+
+### Prerequisites
+- Access to a DAV-compliant server (Nextcloud, OwnCloud, Apache/mod_dav, etc.)
+- Valid username and password for the DAV server
+
+### Authentication Methods
+- **Basic Authentication**: Username and password authentication
+- **Server Configuration**: Base URL of your DAV server
+
+### Setup Steps
+1. In n8n, go to **Settings > Credentials**
+2. Create a new **"DAV API"** credential
+3. Enter your DAV server details:
+   - **Base URL**: Your DAV server URL (e.g., `https://dav.example.com`)
+   - **Username**: Your DAV server username
+   - **Password**: Your DAV server password
+
+## Compatibility
+
+- **Minimum n8n version**: 1.0.0
+- **Tested with**: n8n 1.0.x and 1.1.x
+- **Node.js**: >= 18.0.0 (recommended: 20.x)
+- **DAV Server Compatibility**:
+  - Nextcloud (full WebDAV/CalDAV/CardDAV support)
+  - OwnCloud (standard DAV protocol support)
+  - Apache/mod_dav (basic WebDAV functionality)
+  - SabreDAV (PHP-based DAV server library)
+  - Other RFC-compliant DAV servers
+
+## Usage
+
+### Basic Setup
+1. Install the nodes following the installation guide
+2. Configure your DAV credentials
+3. Add a DAV node to your workflow
+4. Select the appropriate resource (File/Calendar/Address Book)
+5. Choose your desired operation
+6. Configure the operation parameters
+
+### Advanced Features
+
+#### Expression Support
+All nodes support n8n expressions for dynamic values:
+- File paths: `{{$json.filename}}`
+- Calendar paths: `{{$node["Previous Node"].json.calendarPath}}`
+- Contact filters: `{{$json.searchTerm}}`
+
+#### Workflow Integration Examples
+
+**File Processing Workflow:**
+```javascript
+// WebDAV + File Processing nodes
+const fileContent = item.json.fileContent;
+const processedContent = fileContent.toString().toUpperCase();
+item.json.processedFile = processedContent;
+```
+
+**Calendar Data Integration:**
+```javascript
+// CalDAV + Calendar nodes
+const icalData = item.json.calendarData;
+// Parse iCalendar format for n8n calendar nodes
+item.json.events = parseICalendar(icalData);
+```
+
+**Contact Synchronization:**
+```javascript
+// CardDAV + CRM/Contact nodes
+const vcardData = item.json.contactData;
+// Transform vCard to structured contact format
+item.json.contact = {
+  name: extractVCardField(vcardData, 'FN'),
+  email: extractVCardField(vcardData, 'EMAIL'),
+  phone: extractVCardField(vcardData, 'TEL')
+};
+```
+
+### Development
+
+#### Building
+```bash
+npm run build
+```
+
+#### Linting
+```bash
+npm run lint
+npm run lintfix  # Auto-fix issues
+```
+
+#### Testing
+Test the nodes locally using n8n desktop or your n8n instance.
+
+## Resources
+
+* [n8n community nodes documentation](https://docs.n8n.io/integrations/#community-nodes)
+* [WebDAV RFC 4918](https://tools.ietf.org/html/rfc4918)
+* [CalDAV RFC 4791](https://tools.ietf.org/html/rfc4791)
+* [CardDAV RFC 6352](https://tools.ietf.org/html/rfc6352)
+* [Nextcloud DAV documentation](https://docs.nextcloud.com/server/latest/developer_manual/client_apis/WebDAV/index.html)
+
+## Version history
+
+### 0.1.0
+- Initial release
+- WebDAV node with 7 operations (Download, Upload, Get Properties, Create Directory, Delete, Move, Copy)
+- CalDAV node with 5 operations (Get Calendars, Get Events, Create Event, Update Event, Delete Event)
+- CardDAV node with 5 operations (Get Address Books, Get Contacts, Create Contact, Update Contact, Delete Contact)
+- Shared DAV API credentials
+- Full RFC compliance for DAV protocols
+- Expression support for dynamic values
+- Comprehensive error handling and workflow integration
