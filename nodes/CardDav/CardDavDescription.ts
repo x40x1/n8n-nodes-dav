@@ -89,7 +89,7 @@ const getAddressBooksOperationFields: INodeProperties[] = [
 		type: 'string',
 		default: '/addressbooks/user/',
 		placeholder: '/addressbooks/user/',
-		description: 'Path to the address book home set on the CardDAV server',
+		description: 'Path to the address book home set on the CardDAV server. Start with "/". Spaces and special characters are auto-encoded.',
 		displayOptions: {
 			show: {
 				resource: ['addressbook'],
@@ -107,7 +107,7 @@ const getContactsOperationFields: INodeProperties[] = [
 		type: 'string',
 		default: '',
 		placeholder: '/addressbooks/user/contacts/',
-		description: 'Path to the specific address book',
+		description: 'Path to the specific address book. Start with "/". Spaces and special characters are auto-encoded.',
 		displayOptions: {
 			show: {
 				resource: ['addressbook'],
@@ -167,7 +167,7 @@ const createContactOperationFields: INodeProperties[] = [
 		type: 'string',
 		default: '',
 		placeholder: '/addressbooks/user/contacts/',
-		description: 'Path to the address book where the contact will be created',
+		description: 'Path to the address book where the contact will be created. Start with "/". Spaces and special characters are auto-encoded.',
 		displayOptions: {
 			show: {
 				resource: ['addressbook'],
@@ -214,7 +214,7 @@ const updateContactOperationFields: INodeProperties[] = [
 		type: 'string',
 		default: '',
 		placeholder: '/addressbooks/user/contacts/',
-		description: 'Path to the address book containing the contact',
+		description: 'Path to the address book containing the contact. Start with "/". Spaces and special characters are auto-encoded.',
 		displayOptions: {
 			show: {
 				resource: ['addressbook'],
@@ -261,7 +261,7 @@ const deleteContactOperationFields: INodeProperties[] = [
 		type: 'string',
 		default: '',
 		placeholder: '/addressbooks/user/contacts/',
-		description: 'Path to the address book containing the contact',
+		description: 'Path to the address book containing the contact. Start with "/". Spaces and special characters are auto-encoded.',
 		displayOptions: {
 			show: {
 				resource: ['addressbook'],

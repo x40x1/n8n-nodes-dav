@@ -93,11 +93,48 @@ export class WebDav implements INodeType {
 				const operation = this.getNodeParameter('operation', itemIndex) as string;
 				const item = items[itemIndex];
 
+				// Helper to produce richer, user-friendly errors for n8n UI
+				const toFriendlyError = (e: any, u: string, resource: string) => {
+					const base = `WebDAV ${operation} on ${resource}: "${u}"`;
+					const msg = String(e?.message || e);
+
+					// Node URL construction failures
+					if (/Invalid URL/i.test(msg)) {
+						return `Invalid URL for ${base}. Ensure Base URL has protocol (https://) and path starts with "/". Spaces/special chars are auto-encoded.`;
+					}
+
+					// Common network errors
+					if (e?.code === 'ENOTFOUND') return `Host not found for ${base}. Check the server hostname in credentials.`;
+					if (e?.code === 'ECONNREFUSED') return `Connection refused for ${base}. Server unreachable or port blocked.`;
+					if (e?.code === 'ETIMEDOUT') return `Connection timed out for ${base}. Server slow or network issues.`;
+
+					// HTTP error responses (n8n wraps errors; try a few shapes)
+					const status = e?.statusCode ?? e?.response?.status ?? e?.cause?.response?.status;
+					const statusText = e?.response?.statusText ?? e?.cause?.response?.statusText;
+					if (status) {
+						return `HTTP ${status}${statusText ? ` ${statusText}` : ''} for ${base}.`;
+					}
+
+					// Fallback to original message
+					return `${msg} (${base})`;
+				};
+
+				const doRequest = async (opts: Parameters<typeof this.helpers.httpRequest>[0]) => {
+					try {
+						return await this.helpers.httpRequest(opts as any);
+					} catch (e: any) {
+						const u = (opts as any)?.url;
+						const resource = this.getNodeParameter('resource', itemIndex) as string;
+						const friendly = toFriendlyError(e, u, resource);
+						throw new NodeOperationError(this.getNode(), friendly, { itemIndex });
+					}
+				};
+
 				switch (operation) {
 					case 'get': {
 						const path = this.getNodeParameter('path', itemIndex, '') as string;
 
-						const response = await this.helpers.httpRequest({
+						const response = await doRequest({
 							method: 'GET',
 							url: normalizePath(path),
 							returnFullResponse: true,
@@ -115,7 +152,7 @@ export class WebDav implements INodeType {
 						const fileContent = this.getNodeParameter('fileContent', itemIndex, '') as string;
 						const contentType = this.getNodeParameter('contentType', itemIndex, 'application/octet-stream') as string;
 
-						const response = await this.helpers.httpRequest({
+						const response = await doRequest({
 							method: 'PUT',
 							url: normalizePath(path),
 							body: fileContent,
@@ -145,7 +182,7 @@ export class WebDav implements INodeType {
 	</D:prop>
 </D:propfind>`;
 
-						const response = await this.helpers.httpRequest({
+						const response = await doRequest({
 							method: 'PROPFIND' as any,
 							url: path === '/' ? '/' : normalizePath(path),
 							body: xmlBody,
@@ -191,7 +228,7 @@ export class WebDav implements INodeType {
 					case 'mkcol': {
 						const path = this.getNodeParameter('path', itemIndex, '') as string;
 
-						const response = await this.helpers.httpRequest({
+						const response = await doRequest({
 							method: 'MKCOL' as any,
 							url: normalizePath(path),
 							returnFullResponse: true,
@@ -205,7 +242,7 @@ export class WebDav implements INodeType {
 					case 'delete': {
 						const path = this.getNodeParameter('path', itemIndex, '') as string;
 
-						const response = await this.helpers.httpRequest({
+						const response = await doRequest({
 							method: 'DELETE',
 							url: normalizePath(path),
 							returnFullResponse: true,
@@ -221,7 +258,7 @@ export class WebDav implements INodeType {
 						const destination = this.getNodeParameter('destination', itemIndex, '') as string;
 						const overwrite = this.getNodeParameter('overwrite', itemIndex, false) as boolean;
 
-						const response = await this.helpers.httpRequest({
+						const response = await doRequest({
 							method: 'MOVE' as any,
 							url: normalizePath(path),
 							headers: {
@@ -242,7 +279,7 @@ export class WebDav implements INodeType {
 						const destination = this.getNodeParameter('destination', itemIndex, '') as string;
 						const overwrite = this.getNodeParameter('overwrite', itemIndex, false) as boolean;
 
-						const response = await this.helpers.httpRequest({
+						const response = await doRequest({
 							method: 'COPY' as any,
 							url: normalizePath(path),
 							headers: {

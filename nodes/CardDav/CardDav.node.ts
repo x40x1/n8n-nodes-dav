@@ -68,35 +68,74 @@ export class CardDav implements INodeType {
 			);
 		}
 
-		for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
+		// Helper to normalize and encode DAV paths (handles spaces and special chars)
+		const normalizePath = (p: string): string => {
+			if (!p || p === '/') return '/';
+			if (/^https?:\/\//i.test(p)) return p; // full URL passthrough
+			const raw = p.startsWith('/') ? p.slice(1) : p;
+			const encoded = raw
+				.split('/')
+				.map((seg) => {
+					if (!seg) return '';
+					try {
+						return encodeURIComponent(decodeURIComponent(seg));
+					} catch {
+						return encodeURIComponent(seg);
+					}
+				})
+				.join('/');
+			return `/${encoded}`;
+		};		for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
 			try {
 				const operation = this.getNodeParameter('operation', itemIndex) as string;
 				const item = items[itemIndex];
 
+				// Helper to produce richer, user-friendly errors for n8n UI
+				const toFriendlyError = (e: any, u: string, resource: string) => {
+					const base = `CardDAV ${operation} on ${resource}: "${u}"`;
+					const msg = String(e?.message || e);
+
+					if (/Invalid URL/i.test(msg)) {
+						return `Invalid URL for ${base}. Ensure Base URL has protocol (https://) and path starts with "/". Spaces/special chars are auto-encoded.`;
+					}
+					if (e?.code === 'ENOTFOUND') return `Host not found for ${base}. Check the server hostname in credentials.`;
+					if (e?.code === 'ECONNREFUSED') return `Connection refused for ${base}. Server unreachable or port blocked.`;
+					if (e?.code === 'ETIMEDOUT') return `Connection timed out for ${base}. Server slow or network issues.`;
+
+					const status = e?.statusCode ?? e?.response?.status ?? e?.cause?.response?.status;
+					const statusText = e?.response?.statusText ?? e?.cause?.response?.statusText;
+					if (status) return `HTTP ${status}${statusText ? ` ${statusText}` : ''} for ${base}.`;
+					return `${msg} (${base})`;
+				};
+
+				const doRequest = async (opts: Parameters<typeof this.helpers.httpRequest>[0]) => {
+					try {
+						return await this.helpers.httpRequest(opts as any);
+					} catch (e: any) {
+						const u = (opts as any)?.url;
+						const resource = this.getNodeParameter('resource', itemIndex) as string;
+						const friendly = toFriendlyError(e, u, resource);
+						throw new NodeOperationError(this.getNode(), friendly, { itemIndex });
+					}
+				};
+
 				switch (operation) {
 					case 'getAddressBooks': {
 						let addressBookHomeSet = this.getNodeParameter('addressBookHomeSet', itemIndex, '/addressbooks/user/') as string;
-
-						// Ensure leading slash for relative paths
-						if (!/^https?:\/\//i.test(addressBookHomeSet) && !addressBookHomeSet.startsWith('/')) {
-							addressBookHomeSet = `/${addressBookHomeSet}`;
-						}
+						addressBookHomeSet = normalizePath(addressBookHomeSet);
 
 						const xmlBody = `<?xml version="1.0" encoding="utf-8"?>
-<C:addressbook-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:carddav">
+<D:propfind xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:carddav">
 	<D:prop>
 		<D:resourcetype/>
 		<D:displayname/>
 		<C:addressbook-description/>
 		<C:supported-address-data/>
 	</D:prop>
-	<C:filter>
-		<C:prop-filter name="FN"/>
-	</C:filter>
-</C:addressbook-query>`;
+</D:propfind>`;
 
-						const response = await this.helpers.httpRequest({
-							method: 'REPORT' as any,
+						const response = await doRequest({
+							method: 'PROPFIND' as any,
 							url: addressBookHomeSet,
 							body: xmlBody,
 							headers: {
@@ -135,11 +174,7 @@ export class CardDav implements INodeType {
 					}
 					case 'getContacts': {
 						let addressBookPath = this.getNodeParameter('addressBookPath', itemIndex, '') as string;
-
-						// Ensure addressBookPath is properly formatted with leading slash
-						if (!addressBookPath.startsWith('/')) {
-							addressBookPath = `/${addressBookPath}`;
-						}
+						addressBookPath = normalizePath(addressBookPath);
 						const filter = this.getNodeParameter('filter', itemIndex, 'all') as string;
 
 						let filterXml = '';
@@ -174,7 +209,7 @@ export class CardDav implements INodeType {
 	</D:prop>${filterXml}
 </C:addressbook-query>`;
 
-						const response = await this.helpers.httpRequest({
+						const response = await doRequest({
 							method: 'REPORT' as any,
 							url: addressBookPath,
 							body: xmlBody,
@@ -215,15 +250,11 @@ export class CardDav implements INodeType {
 						let addressBookPath = this.getNodeParameter('addressBookPath', itemIndex, '') as string;
 						const contactId = this.getNodeParameter('contactId', itemIndex, '') as string;
 						const contactData = this.getNodeParameter('contactData', itemIndex, '') as string;
+						addressBookPath = normalizePath(addressBookPath);
 
-						// Ensure addressBookPath is properly formatted with leading slash
-						if (!addressBookPath.startsWith('/')) {
-							addressBookPath = `/${addressBookPath}`;
-						}
-
-						const response = await this.helpers.httpRequest({
+						const response = await doRequest({
 							method: 'PUT',
-							url: `${addressBookPath}${contactId}.vcf`,
+							url: normalizePath(`${addressBookPath}/${contactId}.vcf`),
 							body: contactData,
 							headers: {
 								'Content-Type': 'text/vcard',
@@ -241,15 +272,11 @@ export class CardDav implements INodeType {
 						let addressBookPath = this.getNodeParameter('addressBookPath', itemIndex, '') as string;
 						const contactId = this.getNodeParameter('contactId', itemIndex, '') as string;
 						const contactData = this.getNodeParameter('contactData', itemIndex, '') as string;
+						addressBookPath = normalizePath(addressBookPath);
 
-						// Ensure addressBookPath is properly formatted with leading slash
-						if (!addressBookPath.startsWith('/')) {
-							addressBookPath = `/${addressBookPath}`;
-						}
-
-						const response = await this.helpers.httpRequest({
+						const response = await doRequest({
 							method: 'PUT',
-							url: `${addressBookPath}${contactId}.vcf`,
+							url: normalizePath(`${addressBookPath}/${contactId}.vcf`),
 							body: contactData,
 							headers: {
 								'Content-Type': 'text/vcard',
@@ -267,15 +294,11 @@ export class CardDav implements INodeType {
 					case 'deleteContact': {
 						let addressBookPath = this.getNodeParameter('addressBookPath', itemIndex, '') as string;
 						const contactId = this.getNodeParameter('contactId', itemIndex, '') as string;
+						addressBookPath = normalizePath(addressBookPath);
 
-						// Ensure addressBookPath is properly formatted with leading slash
-						if (!addressBookPath.startsWith('/')) {
-							addressBookPath = `/${addressBookPath}`;
-						}
-
-						const response = await this.helpers.httpRequest({
+						const response = await doRequest({
 							method: 'DELETE',
-							url: `${addressBookPath}${contactId}.vcf`,
+							url: normalizePath(`${addressBookPath}/${contactId}.vcf`),
 							returnFullResponse: true,
 						});
 

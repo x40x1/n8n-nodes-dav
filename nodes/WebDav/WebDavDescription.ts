@@ -119,7 +119,7 @@ const getOperationFields: INodeProperties[] = [
 		type: 'string',
 		default: '',
 		placeholder: '/path/to/file.txt',
-		description: 'Path to the file on the WebDAV server. Supports expressions like {{$JSON.filename}}.',
+		description: 'Path to the file on the WebDAV server. Start with "/". Spaces and special characters are auto-encoded. Supports expressions like {{$JSON.filename}}.',
 		displayOptions: {
 			show: {
 				resource: ['file'],
@@ -137,7 +137,7 @@ const putOperationFields: INodeProperties[] = [
 		type: 'string',
 		default: '',
 		placeholder: '/path/to/file.txt',
-		description: 'Path where to upload the file on the WebDAV server. Supports expressions like {{$JSON.filename}}.',
+		description: 'Path where to upload the file on the WebDAV server. Start with "/". Spaces and special characters are auto-encoded. Supports expressions like {{$JSON.filename}}.',
 		displayOptions: {
 			show: {
 				resource: ['file'],
@@ -183,7 +183,7 @@ const propfindOperationFields: INodeProperties[] = [
 		type: 'string',
 		default: '/',
 		placeholder: '/path/to/resource',
-		description: 'Path to the resource to get properties for. Use "/" for root.',
+		description: 'Path to the resource to get properties for. Use "/" for root. Spaces and special characters are auto-encoded.',
 		displayOptions: {
 			show: {
 				resource: ['file'],
@@ -228,7 +228,7 @@ const mkcolOperationFields: INodeProperties[] = [
 		type: 'string',
 		default: '',
 		placeholder: '/path/to/new/directory',
-		description: 'Path of the directory to create on the WebDAV server',
+		description: 'Path of the directory to create on the WebDAV server. Start with "/". Spaces and special characters are auto-encoded.',
 		displayOptions: {
 			show: {
 				resource: ['file'],
@@ -246,7 +246,7 @@ const deleteOperationFields: INodeProperties[] = [
 		type: 'string',
 		default: '',
 		placeholder: '/path/to/resource',
-		description: 'Path to the file or directory to delete',
+		description: 'Path to the file or directory to delete. Start with "/". Spaces and special characters are auto-encoded.',
 		displayOptions: {
 			show: {
 				resource: ['file'],
@@ -264,7 +264,7 @@ const moveOperationFields: INodeProperties[] = [
 		type: 'string',
 		default: '',
 		placeholder: '/path/to/source',
-		description: 'Path to the resource to move',
+		description: 'Path to the resource to move. Start with "/". Spaces and special characters are auto-encoded.',
 		displayOptions: {
 			show: {
 				resource: ['file'],
@@ -279,7 +279,7 @@ const moveOperationFields: INodeProperties[] = [
 		type: 'string',
 		default: '',
 		placeholder: '/path/to/destination',
-		description: 'New path for the resource',
+		description: 'New path for the resource. Start with "/". Spaces and special characters are auto-encoded.',
 		displayOptions: {
 			show: {
 				resource: ['file'],
@@ -310,7 +310,7 @@ const copyOperationFields: INodeProperties[] = [
 		type: 'string',
 		default: '',
 		placeholder: '/path/to/source',
-		description: 'Path to the resource to copy',
+		description: 'Path to the resource to copy. Start with "/". Spaces and special characters are auto-encoded.',
 		displayOptions: {
 			show: {
 				resource: ['file'],
@@ -325,7 +325,7 @@ const copyOperationFields: INodeProperties[] = [
 		type: 'string',
 		default: '',
 		placeholder: '/path/to/destination',
-		description: 'Path where to copy the resource',
+		description: 'Path where to copy the resource. Start with "/". Spaces and special characters are auto-encoded.',
 		displayOptions: {
 			show: {
 				resource: ['file'],

@@ -69,30 +69,74 @@ export class CalDav implements INodeType {
 			);
 		}
 
-		for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
+		// Helper to normalize and encode DAV paths (handles spaces and special chars)
+		const normalizePath = (p: string): string => {
+			if (!p || p === '/') return '/';
+			if (/^https?:\/\//i.test(p)) return p; // full URL passthrough
+			const raw = p.startsWith('/') ? p.slice(1) : p;
+			const encoded = raw
+				.split('/')
+				.map((seg) => {
+					if (!seg) return '';
+					try {
+						return encodeURIComponent(decodeURIComponent(seg));
+					} catch {
+						return encodeURIComponent(seg);
+					}
+				})
+				.join('/');
+			return `/${encoded}`;
+		};		for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
 			try {
 				const operation = this.getNodeParameter('operation', itemIndex) as string;
 				const item = items[itemIndex];
 
+				// Helper to produce richer, user-friendly errors for n8n UI
+				const toFriendlyError = (e: any, u: string, resource: string) => {
+					const base = `CalDAV ${operation} on ${resource}: "${u}"`;
+					const msg = String(e?.message || e);
+
+					if (/Invalid URL/i.test(msg)) {
+						return `Invalid URL for ${base}. Ensure Base URL has protocol (https://) and path starts with "/". Spaces/special chars are auto-encoded.`;
+					}
+					if (e?.code === 'ENOTFOUND') return `Host not found for ${base}. Check the server hostname in credentials.`;
+					if (e?.code === 'ECONNREFUSED') return `Connection refused for ${base}. Server unreachable or port blocked.`;
+					if (e?.code === 'ETIMEDOUT') return `Connection timed out for ${base}. Server slow or network issues.`;
+
+					const status = e?.statusCode ?? e?.response?.status ?? e?.cause?.response?.status;
+					const statusText = e?.response?.statusText ?? e?.cause?.response?.statusText;
+					if (status) return `HTTP ${status}${statusText ? ` ${statusText}` : ''} for ${base}.`;
+					return `${msg} (${base})`;
+				};
+
+				const doRequest = async (opts: Parameters<typeof this.helpers.httpRequest>[0]) => {
+					try {
+						return await this.helpers.httpRequest(opts as any);
+					} catch (e: any) {
+						const u = (opts as any)?.url;
+						const resource = this.getNodeParameter('resource', itemIndex) as string;
+						const friendly = toFriendlyError(e, u, resource);
+						throw new NodeOperationError(this.getNode(), friendly, { itemIndex });
+					}
+				};
+
 				switch (operation) {
 					case 'getCalendars': {
-						const calendarHomeSet = this.getNodeParameter('calendarHomeSet', itemIndex, '/calendars/user/') as string;
+						let calendarHomeSet = this.getNodeParameter('calendarHomeSet', itemIndex, '/calendars/user/') as string;
+						calendarHomeSet = normalizePath(calendarHomeSet);
 
 						const xmlBody = `<?xml version="1.0" encoding="utf-8"?>
-<C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
-	<D:prop>
-		<D:resourcetype/>
-		<D:displayname/>
-		<C:calendar-description/>
-		<C:supported-calendar-component-set/>
-	</D:prop>
-	<C:filter>
-		<C:comp-filter name="VCALENDAR"/>
-	</C:filter>
-</C:calendar-query>`;
+	<D:propfind xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
+		<D:prop>
+			<D:resourcetype/>
+			<D:displayname/>
+			<C:calendar-description/>
+			<C:supported-calendar-component-set/>
+		</D:prop>
+	</D:propfind>`;
 
-						const response = await this.helpers.httpRequest({
-							method: 'REPORT' as any,
+						const response = await doRequest({
+							method: 'PROPFIND' as any,
 							url: calendarHomeSet,
 							body: xmlBody,
 							headers: {
@@ -181,9 +225,9 @@ export class CalDav implements INodeType {
 	</D:prop>${filterXml}
 </C:calendar-query>`;
 
-						const response = await this.helpers.httpRequest({
+						const response = await doRequest({
 							method: 'REPORT' as any,
-							url: calendarPath,
+							url: normalizePath(calendarPath),
 							body: xmlBody,
 							headers: {
 								'Content-Type': 'application/xml',
@@ -228,9 +272,9 @@ export class CalDav implements INodeType {
 							calendarPath = `/${calendarPath}`;
 						}
 
-						const response = await this.helpers.httpRequest({
+						const response = await doRequest({
 							method: 'PUT',
-							url: `${calendarPath}${eventId}.ics`,
+							url: normalizePath(`${calendarPath}/${eventId}.ics`),
 							body: eventData,
 							headers: {
 								'Content-Type': 'text/calendar',
@@ -254,9 +298,9 @@ export class CalDav implements INodeType {
 							calendarPath = `/${calendarPath}`;
 						}
 
-						const response = await this.helpers.httpRequest({
+						const response = await doRequest({
 							method: 'PUT',
-							url: `${calendarPath}${eventId}.ics`,
+							url: normalizePath(`${calendarPath}/${eventId}.ics`),
 							body: eventData,
 							headers: {
 								'Content-Type': 'text/calendar',
@@ -280,9 +324,9 @@ export class CalDav implements INodeType {
 							calendarPath = `/${calendarPath}`;
 						}
 
-						const response = await this.helpers.httpRequest({
+						const response = await doRequest({
 							method: 'DELETE',
-							url: `${calendarPath}${eventId}.ics`,
+							url: normalizePath(`${calendarPath}/${eventId}.ics`),
 							returnFullResponse: true,
 						});
 

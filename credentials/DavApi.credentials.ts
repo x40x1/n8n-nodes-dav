@@ -17,7 +17,7 @@ export class DavApi implements ICredentialType {
 			type: 'string',
 			default: '',
 			placeholder: 'https://dav.example.com',
-			description: 'The base URL of your DAV server',
+			description: 'The base URL of your DAV server (must include http/https). Example: https://nextcloud.example.com/remote.php/dav',
 			required: true,
 		},
 		{

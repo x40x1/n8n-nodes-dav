@@ -89,7 +89,7 @@ const getCalendarsOperationFields: INodeProperties[] = [
 		type: 'string',
 		default: '/calendars/user/',
 		placeholder: '/calendars/user/',
-		description: 'Path to the calendar home set on the CalDAV server',
+		description: 'Path to the calendar home set on the CalDAV server. Start with "/". Spaces and special characters are auto-encoded.',
 		displayOptions: {
 			show: {
 				resource: ['calendar'],
@@ -107,7 +107,7 @@ const getEventsOperationFields: INodeProperties[] = [
 		type: 'string',
 		default: '',
 		placeholder: '/calendars/user/calendar/',
-		description: 'Path to the specific calendar',
+		description: 'Path to the specific calendar. Start with "/". Spaces and special characters are auto-encoded.',
 		displayOptions: {
 			show: {
 				resource: ['calendar'],
@@ -194,7 +194,7 @@ const createEventOperationFields: INodeProperties[] = [
 		type: 'string',
 		default: '',
 		placeholder: '/calendars/user/calendar/',
-		description: 'Path to the calendar where the event will be created',
+		description: 'Path to the calendar where the event will be created. Start with "/". Spaces and special characters are auto-encoded.',
 		displayOptions: {
 			show: {
 				resource: ['calendar'],
@@ -241,7 +241,7 @@ const updateEventOperationFields: INodeProperties[] = [
 		type: 'string',
 		default: '',
 		placeholder: '/calendars/user/calendar/',
-		description: 'Path to the calendar containing the event',
+		description: 'Path to the calendar containing the event. Start with "/". Spaces and special characters are auto-encoded.',
 		displayOptions: {
 			show: {
 				resource: ['calendar'],
@@ -288,7 +288,7 @@ const deleteEventOperationFields: INodeProperties[] = [
 		type: 'string',
 		default: '',
 		placeholder: '/calendars/user/calendar/',
-		description: 'Path to the calendar containing the event',
+		description: 'Path to the calendar containing the event. Start with "/". Spaces and special characters are auto-encoded.',
 		displayOptions: {
 			show: {
 				resource: ['calendar'],
