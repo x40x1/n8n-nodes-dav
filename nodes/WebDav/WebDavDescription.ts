@@ -152,7 +152,7 @@ const putOperationFields: INodeProperties[] = [
 		type: 'string',
 		default: 'data',
 		placeholder: 'data',
-		description: 'Name of the binary property that contains the file to upload (e.g. from a previous Read Binary File node).',
+		description: 'Name of the binary property that contains the file to upload (e.g. from a previous Read Binary File node)',
 		displayOptions: {
 			show: {
 				resource: ['file'],
