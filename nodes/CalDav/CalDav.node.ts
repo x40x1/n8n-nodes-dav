@@ -1,14 +1,16 @@
 import type {
-	IExecuteFunctions,
-	INodeExecutionData,
-	INodeType,
-	INodeTypeDescription,
+        IExecuteFunctions,
+        ILoadOptionsFunctions,
+        INodeExecutionData,
+        INodePropertyOptions,
+        INodeType,
+        INodeTypeDescription,
 } from 'n8n-workflow';
 import { NodeConnectionType, NodeOperationError } from 'n8n-workflow';
 import { calDavFields, calDavOperations } from './CalDavDescription';
 
 export class CalDav implements INodeType {
-	description: INodeTypeDescription = {
+        description: INodeTypeDescription = {
 		displayName: 'CalDAV',
 		name: 'calDav',
 		icon: { light: 'file:caldav.svg', dark: 'file:caldav.svg' },
@@ -52,8 +54,74 @@ export class CalDav implements INodeType {
 			},
 			...calDavOperations,
 			...calDavFields,
-		],
-	};
+                ],
+        };
+
+        methods = {
+                loadOptions: {
+                        async getCalendars(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
+                                const creds = (await this.getCredentials('davApi')) as { baseUrl: string };
+                                const baseUrl = creds.baseUrl.replace(/\/$/, '');
+
+                                const xmlBody = `<?xml version="1.0" encoding="utf-8"?>
+<D:propfind xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
+        <D:prop>
+                <D:displayname/>
+                <C:calendar-description/>
+                <D:resourcetype/>
+        </D:prop>
+</D:propfind>`;
+
+                                const requestOptions = {
+                                        method: 'PROPFIND' as any,
+                                        url: `${baseUrl}/calendars/`,
+                                        headers: { Depth: '1', 'Content-Type': 'application/xml' },
+                                        body: xmlBody,
+                                } as any;
+
+                                const helpers: any = this.helpers;
+                                let response: any;
+                                if (typeof helpers.httpRequestWithAuthentication === 'function') {
+                                        response = await helpers.httpRequestWithAuthentication.call(
+                                                this,
+                                                'davApi',
+                                                requestOptions,
+                                        );
+                                } else if (typeof helpers.requestWithAuthentication === 'function') {
+                                        response = await helpers.requestWithAuthentication.call(
+                                                this,
+                                                'davApi',
+                                                requestOptions,
+                                        );
+                                } else {
+                                        response = await this.helpers.httpRequest(requestOptions);
+                                }
+
+                                const xmlData = (response.data ?? response.body ?? response) as string;
+                                const calendars: INodePropertyOptions[] = [];
+                                const responseRegex = /<D:response[^>]*>(.*?)<\/D:response>/gs;
+                                let match;
+
+                                while ((match = responseRegex.exec(xmlData)) !== null) {
+                                        const resXml = match[1];
+                                        const hrefMatch = resXml.match(/<D:href[^>]*>(.*?)<\/D:href>/);
+                                        const displayNameMatch = resXml.match(
+                                                /<D:displayname[^>]*>(.*?)<\/D:displayname>/,
+                                        );
+                                        const resourceTypeMatch = resXml.match(/<D:resourcetype[^>]*>(.*?)<\/D:resourcetype>/);
+                                        if (hrefMatch && resourceTypeMatch?.[1]?.includes('collection')) {
+                                                const href = decodeURIComponent(hrefMatch[1]);
+                                                calendars.push({
+                                                        name: displayNameMatch ? displayNameMatch[1] : href,
+                                                        value: href,
+                                                });
+                                        }
+                                }
+
+                                return calendars;
+                        },
+                },
+        };
 
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
 		const items = this.getInputData();
@@ -155,16 +223,16 @@ export class CalDav implements INodeType {
 		</D:prop>
 	</D:propfind>`;
 
-						const response = await doRequest({
-							method: 'PROPFIND' as any,
-							url: calendarHomeSet,
-							body: xmlBody,
-							headers: {
-								Depth: '1',
-								'Content-Type': 'application/xml',
-							},
-							returnFullResponse: true,
-						});
+                                                const response = await doRequest({
+                                                        method: 'PROPFIND' as any,
+                                                        url: calendarHomeSet,
+                                                        body: xmlBody,
+                                                        headers: {
+                                                                Depth: '1',
+                                                                'Content-Type': 'application/xml',
+                                                        },
+                                                        returnFullResponse: true,
+                                                });
 
 						const parseCalendarsResponse = (xmlData: string): any[] => {
 							const calendars: any[] = [];
@@ -189,11 +257,12 @@ export class CalDav implements INodeType {
 							return calendars;
 						};
 
-						item.json.calendars = parseCalendarsResponse(response.data);
-						item.json.statusCode = response.status;
-						break;
-					}
-					case 'getEvents': {
+                                                const bodyData = (response.data ?? response.body) as string;
+                                                item.json.calendars = parseCalendarsResponse(bodyData);
+                                                item.json.statusCode = response.statusCode;
+                                                break;
+                                        }
+                                        case 'getEvents': {
 						let calendarPath = this.getNodeParameter('calendarPath', itemIndex, '') as string;
 						const timeRange = this.getNodeParameter('timeRange', itemIndex, 'all') as string;
 
@@ -245,15 +314,15 @@ export class CalDav implements INodeType {
 	</D:prop>${filterXml}
 </C:calendar-query>`;
 
-						const response = await doRequest({
-							method: 'REPORT' as any,
-							url: normalizePath(calendarPath),
-							body: xmlBody,
-							headers: {
-								'Content-Type': 'application/xml',
-							},
-							returnFullResponse: true,
-						});
+                                                const response = await doRequest({
+                                                        method: 'REPORT' as any,
+                                                        url: normalizePath(calendarPath),
+                                                        body: xmlBody,
+                                                        headers: {
+                                                                'Content-Type': 'application/xml',
+                                                        },
+                                                        returnFullResponse: true,
+                                                });
 
 						const parseEventsResponse = (xmlData: string): any[] => {
 							const events: any[] = [];
@@ -278,11 +347,12 @@ export class CalDav implements INodeType {
 							return events;
 						};
 
-						item.json.events = parseEventsResponse(response.data);
-						item.json.statusCode = response.status;
-						break;
-					}
-					case 'createEvent': {
+                                                const bodyData = (response.data ?? response.body) as string;
+                                                item.json.events = parseEventsResponse(bodyData);
+                                                item.json.statusCode = response.statusCode;
+                                                break;
+                                        }
+                                        case 'createEvent': {
 						let calendarPath = this.getNodeParameter('calendarPath', itemIndex, '') as string;
 						const eventId = this.getNodeParameter('eventId', itemIndex, '') as string;
 						const eventData = this.getNodeParameter('eventData', itemIndex, '') as string;
@@ -292,23 +362,24 @@ export class CalDav implements INodeType {
 							calendarPath = `/${calendarPath}`;
 						}
 
-						const response = await doRequest({
-							method: 'PUT',
-							url: normalizePath(`${calendarPath}/${eventId}.ics`),
-							body: eventData,
-							headers: {
-								'Content-Type': 'text/calendar',
-							},
-							returnFullResponse: true,
-						});
+                                                const response = await doRequest({
+                                                        method: 'PUT',
+                                                        url: normalizePath(`${calendarPath}/${eventId}.ics`),
+                                                        body: eventData,
+                                                        headers: {
+                                                                'Content-Type': 'text/calendar',
+                                                        },
+                                                        returnFullResponse: true,
+                                                });
 
-						item.json.success = response.status >= 200 && response.status < 300;
-						item.json.statusCode = response.status;
-						item.json.eventId = eventId;
-						item.json.calendarPath = calendarPath;
-						break;
-					}
-					case 'updateEvent': {
+                                                item.json.success =
+                                                        response.statusCode >= 200 && response.statusCode < 300;
+                                                item.json.statusCode = response.statusCode;
+                                                item.json.eventId = eventId;
+                                                item.json.calendarPath = calendarPath;
+                                                break;
+                                        }
+                                        case 'updateEvent': {
 						let calendarPath = this.getNodeParameter('calendarPath', itemIndex, '') as string;
 						const eventId = this.getNodeParameter('eventId', itemIndex, '') as string;
 						const eventData = this.getNodeParameter('eventData', itemIndex, '') as string;
@@ -318,24 +389,25 @@ export class CalDav implements INodeType {
 							calendarPath = `/${calendarPath}`;
 						}
 
-						const response = await doRequest({
-							method: 'PUT',
-							url: normalizePath(`${calendarPath}/${eventId}.ics`),
-							body: eventData,
-							headers: {
-								'Content-Type': 'text/calendar',
-								'If-Match': '*',
-							},
-							returnFullResponse: true,
-						});
+                                                const response = await doRequest({
+                                                        method: 'PUT',
+                                                        url: normalizePath(`${calendarPath}/${eventId}.ics`),
+                                                        body: eventData,
+                                                        headers: {
+                                                                'Content-Type': 'text/calendar',
+                                                                'If-Match': '*',
+                                                        },
+                                                        returnFullResponse: true,
+                                                });
 
-						item.json.success = response.status >= 200 && response.status < 300;
-						item.json.statusCode = response.status;
-						item.json.eventId = eventId;
-						item.json.calendarPath = calendarPath;
-						break;
-					}
-					case 'deleteEvent': {
+                                                item.json.success =
+                                                        response.statusCode >= 200 && response.statusCode < 300;
+                                                item.json.statusCode = response.statusCode;
+                                                item.json.eventId = eventId;
+                                                item.json.calendarPath = calendarPath;
+                                                break;
+                                        }
+                                        case 'deleteEvent': {
 						let calendarPath = this.getNodeParameter('calendarPath', itemIndex, '') as string;
 						const eventId = this.getNodeParameter('eventId', itemIndex, '') as string;
 
@@ -344,18 +416,19 @@ export class CalDav implements INodeType {
 							calendarPath = `/${calendarPath}`;
 						}
 
-						const response = await doRequest({
-							method: 'DELETE',
-							url: normalizePath(`${calendarPath}/${eventId}.ics`),
-							returnFullResponse: true,
-						});
+                                                const response = await doRequest({
+                                                        method: 'DELETE',
+                                                        url: normalizePath(`${calendarPath}/${eventId}.ics`),
+                                                        returnFullResponse: true,
+                                                });
 
-						item.json.success = response.status >= 200 && response.status < 300;
-						item.json.statusCode = response.status;
-						item.json.eventId = eventId;
-						item.json.calendarPath = calendarPath;
-						break;
-					}
+                                                item.json.success =
+                                                        response.statusCode >= 200 && response.statusCode < 300;
+                                                item.json.statusCode = response.statusCode;
+                                                item.json.eventId = eventId;
+                                                item.json.calendarPath = calendarPath;
+                                                break;
+                                        }
 					default:
 						throw new NodeOperationError(this.getNode(), `Operation ${operation} not supported`);
 				}

@@ -113,21 +113,40 @@ export const webDavOperations: INodeProperties[] = [
 
 // WebDAV Fields
 const getOperationFields: INodeProperties[] = [
-	{
-		displayName: 'Path',
-		name: 'path',
-		type: 'string',
-		default: '',
-		placeholder: '/path/to/file.txt',
-		description: 'Path to the file on the WebDAV server. Start with "/". Spaces and special characters are auto-encoded. Supports expressions like {{$JSON.filename}}.',
-		displayOptions: {
-			show: {
-				resource: ['file'],
-				operation: ['get'],
-			},
-		},
-		required: true,
-	},
+        {
+                displayName: 'Directory Name or ID',
+                name: 'directory',
+                type: 'options',
+                noDataExpression: true,
+                typeOptions: { loadOptionsMethod: 'listDirectories' },
+                default: '',
+                description:
+                        'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+                displayOptions: {
+                        show: {
+                                resource: ['file'],
+                                operation: ['get'],
+                        },
+                },
+        },
+        {
+                displayName: 'File Name or ID',
+                name: 'path',
+                type: 'options',
+                noDataExpression: true,
+                typeOptions: { loadOptionsMethod: 'listFiles', loadOptionsDependsOn: ['directory'] },
+                default: '',
+                placeholder: '/path/to/file.txt',
+                description:
+                        'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+                displayOptions: {
+                        show: {
+                                resource: ['file'],
+                                operation: ['get'],
+                        },
+                },
+                required: true,
+        },
 ];
 
 const putOperationFields: INodeProperties[] = [
