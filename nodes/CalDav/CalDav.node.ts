@@ -119,8 +119,13 @@ export class CalDav implements INodeType {
 						break;
 					}
 					case 'getEvents': {
-						const calendarPath = this.getNodeParameter('calendarPath', itemIndex, '') as string;
+						let calendarPath = this.getNodeParameter('calendarPath', itemIndex, '') as string;
 						const timeRange = this.getNodeParameter('timeRange', itemIndex, 'all') as string;
+
+						// Ensure calendarPath is properly formatted with leading slash
+						if (!calendarPath.startsWith('/')) {
+							calendarPath = `/${calendarPath}`;
+						}
 
 						let filterXml = '';
 						if (timeRange === 'range') {
@@ -203,9 +208,14 @@ export class CalDav implements INodeType {
 						break;
 					}
 					case 'createEvent': {
-						const calendarPath = this.getNodeParameter('calendarPath', itemIndex, '') as string;
+						let calendarPath = this.getNodeParameter('calendarPath', itemIndex, '') as string;
 						const eventId = this.getNodeParameter('eventId', itemIndex, '') as string;
 						const eventData = this.getNodeParameter('eventData', itemIndex, '') as string;
+
+						// Ensure calendarPath is properly formatted with leading slash
+						if (!calendarPath.startsWith('/')) {
+							calendarPath = `/${calendarPath}`;
+						}
 
 						const response = await this.helpers.httpRequest({
 							method: 'PUT',
@@ -224,9 +234,14 @@ export class CalDav implements INodeType {
 						break;
 					}
 					case 'updateEvent': {
-						const calendarPath = this.getNodeParameter('calendarPath', itemIndex, '') as string;
+						let calendarPath = this.getNodeParameter('calendarPath', itemIndex, '') as string;
 						const eventId = this.getNodeParameter('eventId', itemIndex, '') as string;
 						const eventData = this.getNodeParameter('eventData', itemIndex, '') as string;
+
+						// Ensure calendarPath is properly formatted with leading slash
+						if (!calendarPath.startsWith('/')) {
+							calendarPath = `/${calendarPath}`;
+						}
 
 						const response = await this.helpers.httpRequest({
 							method: 'PUT',
@@ -246,8 +261,13 @@ export class CalDav implements INodeType {
 						break;
 					}
 					case 'deleteEvent': {
-						const calendarPath = this.getNodeParameter('calendarPath', itemIndex, '') as string;
+						let calendarPath = this.getNodeParameter('calendarPath', itemIndex, '') as string;
 						const eventId = this.getNodeParameter('eventId', itemIndex, '') as string;
+
+						// Ensure calendarPath is properly formatted with leading slash
+						if (!calendarPath.startsWith('/')) {
+							calendarPath = `/${calendarPath}`;
+						}
 
 						const response = await this.helpers.httpRequest({
 							method: 'DELETE',

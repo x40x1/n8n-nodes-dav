@@ -119,7 +119,12 @@ export class CardDav implements INodeType {
 						break;
 					}
 					case 'getContacts': {
-						const addressBookPath = this.getNodeParameter('addressBookPath', itemIndex, '') as string;
+						let addressBookPath = this.getNodeParameter('addressBookPath', itemIndex, '') as string;
+
+						// Ensure addressBookPath is properly formatted with leading slash
+						if (!addressBookPath.startsWith('/')) {
+							addressBookPath = `/${addressBookPath}`;
+						}
 						const filter = this.getNodeParameter('filter', itemIndex, 'all') as string;
 
 						let filterXml = '';
@@ -192,9 +197,14 @@ export class CardDav implements INodeType {
 						break;
 					}
 					case 'createContact': {
-						const addressBookPath = this.getNodeParameter('addressBookPath', itemIndex, '') as string;
+						let addressBookPath = this.getNodeParameter('addressBookPath', itemIndex, '') as string;
 						const contactId = this.getNodeParameter('contactId', itemIndex, '') as string;
 						const contactData = this.getNodeParameter('contactData', itemIndex, '') as string;
+
+						// Ensure addressBookPath is properly formatted with leading slash
+						if (!addressBookPath.startsWith('/')) {
+							addressBookPath = `/${addressBookPath}`;
+						}
 
 						const response = await this.helpers.httpRequest({
 							method: 'PUT',
@@ -213,9 +223,14 @@ export class CardDav implements INodeType {
 						break;
 					}
 					case 'updateContact': {
-						const addressBookPath = this.getNodeParameter('addressBookPath', itemIndex, '') as string;
+						let addressBookPath = this.getNodeParameter('addressBookPath', itemIndex, '') as string;
 						const contactId = this.getNodeParameter('contactId', itemIndex, '') as string;
 						const contactData = this.getNodeParameter('contactData', itemIndex, '') as string;
+
+						// Ensure addressBookPath is properly formatted with leading slash
+						if (!addressBookPath.startsWith('/')) {
+							addressBookPath = `/${addressBookPath}`;
+						}
 
 						const response = await this.helpers.httpRequest({
 							method: 'PUT',
@@ -235,8 +250,13 @@ export class CardDav implements INodeType {
 						break;
 					}
 					case 'deleteContact': {
-						const addressBookPath = this.getNodeParameter('addressBookPath', itemIndex, '') as string;
+						let addressBookPath = this.getNodeParameter('addressBookPath', itemIndex, '') as string;
 						const contactId = this.getNodeParameter('contactId', itemIndex, '') as string;
+
+						// Ensure addressBookPath is properly formatted with leading slash
+						if (!addressBookPath.startsWith('/')) {
+							addressBookPath = `/${addressBookPath}`;
+						}
 
 						const response = await this.helpers.httpRequest({
 							method: 'DELETE',
