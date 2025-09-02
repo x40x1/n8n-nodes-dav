@@ -58,6 +58,36 @@ export class WebDav implements INodeType {
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
 		const items = this.getInputData();
 
+		// Validate credentials.baseUrl early to avoid opaque "Invalid URL" errors
+		const creds = (await this.getCredentials('davApi')) as { baseUrl?: string };
+		const baseUrl = creds?.baseUrl?.toString().trim();
+		if (!baseUrl || !/^https?:\/\//i.test(baseUrl)) {
+			throw new NodeOperationError(
+				this.getNode(),
+				'Invalid Base URL in credentials. Include protocol (http:// or https://), e.g. https://your-server/remote.php/dav',
+			);
+		}
+
+		// Helper to normalize and safely encode a DAV path (handles spaces and special chars)
+		const normalizePath = (p: string): string => {
+			if (!p || p === '/') return '/';
+			// If a full URL was mistakenly provided, pass through (requestDefaults.baseURL will be ignored)
+			if (/^https?:\/\//i.test(p)) return p;
+			const raw = p.startsWith('/') ? p.slice(1) : p;
+			const encoded = raw
+				.split('/')
+				.map((seg) => {
+					if (!seg) return '';
+					try {
+						return encodeURIComponent(decodeURIComponent(seg));
+					} catch {
+						return encodeURIComponent(seg);
+					}
+				})
+				.join('/');
+			return `/${encoded}`;
+		};
+
 		for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
 			try {
 				const operation = this.getNodeParameter('operation', itemIndex) as string;
@@ -69,7 +99,7 @@ export class WebDav implements INodeType {
 
 						const response = await this.helpers.httpRequest({
 							method: 'GET',
-							url: `/${path}`,
+							url: normalizePath(path),
 							returnFullResponse: true,
 						});
 
@@ -87,7 +117,7 @@ export class WebDav implements INodeType {
 
 						const response = await this.helpers.httpRequest({
 							method: 'PUT',
-							url: `/${path}`,
+							url: normalizePath(path),
 							body: fileContent,
 							headers: {
 								'Content-Type': contentType,
@@ -117,7 +147,7 @@ export class WebDav implements INodeType {
 
 						const response = await this.helpers.httpRequest({
 							method: 'PROPFIND' as any,
-							url: path === '/' ? '/' : `/${path}`,
+							url: path === '/' ? '/' : normalizePath(path),
 							body: xmlBody,
 							headers: {
 								Depth: depth,
@@ -163,7 +193,7 @@ export class WebDav implements INodeType {
 
 						const response = await this.helpers.httpRequest({
 							method: 'MKCOL' as any,
-							url: `/${path}`,
+							url: normalizePath(path),
 							returnFullResponse: true,
 						});
 
@@ -177,7 +207,7 @@ export class WebDav implements INodeType {
 
 						const response = await this.helpers.httpRequest({
 							method: 'DELETE',
-							url: `/${path}`,
+							url: normalizePath(path),
 							returnFullResponse: true,
 						});
 
@@ -193,9 +223,9 @@ export class WebDav implements INodeType {
 
 						const response = await this.helpers.httpRequest({
 							method: 'MOVE' as any,
-							url: `/${path}`,
+							url: normalizePath(path),
 							headers: {
-								Destination: `/${destination}`,
+								Destination: normalizePath(destination),
 								Overwrite: overwrite ? 'T' : 'F',
 							},
 							returnFullResponse: true,
@@ -214,9 +244,9 @@ export class WebDav implements INodeType {
 
 						const response = await this.helpers.httpRequest({
 							method: 'COPY' as any,
-							url: `/${path}`,
+							url: normalizePath(path),
 							headers: {
-								Destination: `/${destination}`,
+								Destination: normalizePath(destination),
 								Overwrite: overwrite ? 'T' : 'F',
 							},
 							returnFullResponse: true,

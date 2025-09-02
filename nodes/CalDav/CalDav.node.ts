@@ -58,6 +58,17 @@ export class CalDav implements INodeType {
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
 		const items = this.getInputData();
 
+		// Validate credentials.baseUrl early to avoid opaque "Invalid URL" errors
+		let baseUrl: string | undefined;
+		const creds = (await this.getCredentials('davApi')) as { baseUrl?: string };
+		baseUrl = creds?.baseUrl?.toString().trim();
+		if (!baseUrl || !/^https?:\/\//i.test(baseUrl)) {
+			throw new NodeOperationError(
+				this.getNode(),
+				'Invalid Base URL in credentials. Include protocol (http:// or https://), e.g. https://your-server/remote.php/dav',
+			);
+		}
+
 		for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
 			try {
 				const operation = this.getNodeParameter('operation', itemIndex) as string;

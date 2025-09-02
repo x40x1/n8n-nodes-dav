@@ -58,6 +58,16 @@ export class CardDav implements INodeType {
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
 		const items = this.getInputData();
 
+		// Validate credentials.baseUrl early to avoid opaque "Invalid URL" errors
+		const creds = (await this.getCredentials('davApi')) as { baseUrl?: string };
+		const baseUrl = creds?.baseUrl?.toString().trim();
+		if (!baseUrl || !/^https?:\/\//i.test(baseUrl)) {
+			throw new NodeOperationError(
+				this.getNode(),
+				'Invalid Base URL in credentials. Include protocol (http:// or https://), e.g. https://your-server/remote.php/dav',
+			);
+		}
+
 		for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
 			try {
 				const operation = this.getNodeParameter('operation', itemIndex) as string;
@@ -65,7 +75,12 @@ export class CardDav implements INodeType {
 
 				switch (operation) {
 					case 'getAddressBooks': {
-						const addressBookHomeSet = this.getNodeParameter('addressBookHomeSet', itemIndex, '/addressbooks/user/') as string;
+						let addressBookHomeSet = this.getNodeParameter('addressBookHomeSet', itemIndex, '/addressbooks/user/') as string;
+
+						// Ensure leading slash for relative paths
+						if (!/^https?:\/\//i.test(addressBookHomeSet) && !addressBookHomeSet.startsWith('/')) {
+							addressBookHomeSet = `/${addressBookHomeSet}`;
+						}
 
 						const xmlBody = `<?xml version="1.0" encoding="utf-8"?>
 <C:addressbook-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:carddav">
