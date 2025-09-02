@@ -28,7 +28,15 @@ describe('WebDav Node - URL and Path Handling', () => {
     mockGetInputData = jest.fn();
     mockHelpers = {
       httpRequest: jest.fn(),
+      prepareBinaryData: jest.fn(),
+      getBinaryDataBuffer: jest.fn(),
     };
+    mockHelpers.prepareBinaryData.mockResolvedValue({
+      data: 'dGVzdA==',
+      fileName: 'test.txt',
+      mimeType: 'text/plain',
+    });
+    mockHelpers.getBinaryDataBuffer.mockResolvedValue(Buffer.from('test'));
 
     // Bind mocks to the instance
     (webDavNode as any).getCredentials = mockGetCredentials;
@@ -61,7 +69,7 @@ describe('WebDav Node - URL and Path Handling', () => {
         .mockReturnValueOnce('file'); // resource
 
       mockHelpers.httpRequest.mockResolvedValue({
-        data: 'test content',
+        body: Buffer.from('test content'),
         status: 200,
         headers: {
           'content-type': 'text/plain',
@@ -141,6 +149,114 @@ describe('WebDav Node - URL and Path Handling', () => {
       await expect((webDavNode as any).execute()).rejects.toThrow(
         'Invalid URL for WebDAV get on file: "/Files/Documents/test%20file.txt"'
       );
+    });
+  });
+
+  describe('Binary Handling', () => {
+    test('should throw error when no data returned', async () => {
+      mockGetCredentials.mockResolvedValue({ baseUrl: 'https://webdav.example.com' });
+      mockGetInputData.mockReturnValue([{ json: {} }]);
+      mockGetNodeParameter
+        .mockReturnValueOnce('get')
+        .mockReturnValueOnce('/test.txt')
+        .mockReturnValueOnce('file');
+
+      mockHelpers.httpRequest.mockResolvedValue({
+        status: 200,
+        headers: {},
+      });
+
+      await expect((webDavNode as any).execute()).rejects.toThrow(
+        'No data returned from WebDAV for path "/test.txt"'
+      );
+    });
+
+    test('should reject JSON response', async () => {
+      mockGetCredentials.mockResolvedValue({ baseUrl: 'https://webdav.example.com' });
+      mockGetInputData.mockReturnValue([{ json: {} }]);
+      mockGetNodeParameter
+        .mockReturnValueOnce('get')
+        .mockReturnValueOnce('/test.txt')
+        .mockReturnValueOnce('file');
+
+      mockHelpers.httpRequest.mockResolvedValue({
+        body: Buffer.from('{}'),
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+
+      await expect((webDavNode as any).execute()).rejects.toThrow(
+        'Expected binary response but received JSON from WebDAV for path "/test.txt"'
+      );
+    });
+
+    test('should return binary data and metadata on success', async () => {
+      mockGetCredentials.mockResolvedValue({ baseUrl: 'https://webdav.example.com' });
+      mockGetInputData.mockReturnValue([{ json: {} }]);
+      mockGetNodeParameter
+        .mockReturnValueOnce('get')
+        .mockReturnValueOnce('/test.txt')
+        .mockReturnValueOnce('file');
+
+      const buffer = Buffer.from('test');
+      mockHelpers.httpRequest.mockResolvedValue({
+        body: buffer,
+        status: 200,
+        headers: { 'content-type': 'text/plain', 'content-length': buffer.length.toString() },
+      });
+
+      const result = await (webDavNode as any).execute();
+      expect(mockHelpers.prepareBinaryData).toHaveBeenCalledWith(buffer, 'test.txt', 'text/plain');
+      expect(result[0][0].json).toMatchObject({
+        path: '/test.txt',
+        contentType: 'text/plain',
+        contentLength: buffer.length,
+        statusCode: 200,
+      });
+      expect(result[0][0].binary.data).toEqual({
+        data: 'dGVzdA==',
+        fileName: 'test.txt',
+        mimeType: 'text/plain',
+      });
+    });
+  });
+
+  describe('Upload Handling', () => {
+    test('should throw error if binary property missing', async () => {
+      mockGetCredentials.mockResolvedValue({ baseUrl: 'https://webdav.example.com' });
+      mockGetInputData.mockReturnValue([{ json: {} }]);
+      mockGetNodeParameter
+        .mockReturnValueOnce('put')
+        .mockReturnValueOnce('/upload.txt')
+        .mockReturnValueOnce('data')
+        .mockReturnValueOnce('file');
+
+      await expect((webDavNode as any).execute()).rejects.toThrow(
+        'Input item is missing binary property "data"'
+      );
+    });
+
+    test('should upload binary file successfully', async () => {
+      mockGetCredentials.mockResolvedValue({ baseUrl: 'https://webdav.example.com' });
+      mockGetInputData.mockReturnValue([
+        { json: {}, binary: { data: { mimeType: 'text/plain' } } },
+      ]);
+      mockGetNodeParameter
+        .mockReturnValueOnce('put')
+        .mockReturnValueOnce('/upload.txt')
+        .mockReturnValueOnce('data')
+        .mockReturnValueOnce('file');
+
+      mockHelpers.httpRequest.mockResolvedValue({ status: 201 });
+
+      const result = await (webDavNode as any).execute();
+      expect(mockHelpers.getBinaryDataBuffer).toHaveBeenCalledWith(0, 'data');
+      expect(result[0][0].json).toMatchObject({
+        success: true,
+        statusCode: 201,
+        path: '/upload.txt',
+        contentType: 'text/plain',
+      });
     });
   });
 });
