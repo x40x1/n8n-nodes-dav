@@ -59,18 +59,12 @@ export class WebDav implements INodeType {
 
         methods = {
                 loadOptions: {
-                        // Helper to retrieve and normalize the directory parameter
-                        getNormalizedDirectory(this: ILoadOptionsFunctions): string {
-                                let directory = (this.getCurrentNodeParameter('directory') as string) || '/';
-                                if (!directory.startsWith('/')) directory = `/${directory}`;
-                                return directory;
-                        },
-
                         async listDirectories(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
                                 const creds = (await this.getCredentials('davApi')) as { baseUrl: string };
                                 const baseUrl = creds.baseUrl.replace(/\/$/, '');
                                 const basePath = baseUrl.replace(/^https?:\/\/[^/]+/i, '');
-                                const directory = this.getNormalizedDirectory();
+                                let directory = (this.getCurrentNodeParameter('directory') as string) || '/';
+                                if (!directory.startsWith('/')) directory = `/${directory}`;
 
                                 const xmlBody = `<?xml version="1.0" encoding="utf-8"?>
 <D:propfind xmlns:D="DAV:">
