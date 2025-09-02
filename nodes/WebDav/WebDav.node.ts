@@ -177,9 +177,20 @@ export class WebDav implements INodeType {
                                                         );
                                                 }
 
-                                                const dataBuffer = Buffer.isBuffer(rawData)
-                                                        ? (rawData as Buffer)
-                                                        : Buffer.from(rawData as any);
+                                                let dataBuffer: Buffer;
+                                                if (Buffer.isBuffer(rawData)) {
+                                                    dataBuffer = rawData as Buffer;
+                                                } else if (typeof rawData === 'string') {
+                                                    dataBuffer = Buffer.from(rawData, 'utf8');
+                                                } else if (rawData instanceof ArrayBuffer) {
+                                                    dataBuffer = Buffer.from(new Uint8Array(rawData));
+                                                } else {
+                                                    throw new NodeOperationError(
+                                                        this.getNode(),
+                                                        `Unexpected data type returned from WebDAV for path "${path}": ${typeof rawData}`,
+                                                        { itemIndex },
+                                                    );
+                                                }
                                                 const contentType = response.headers['content-type'] as string | undefined;
                                                 if (
                                                         contentType &&
