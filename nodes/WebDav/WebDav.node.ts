@@ -153,44 +153,81 @@ export class WebDav implements INodeType {
 				};
 
 				switch (operation) {
-					case 'get': {
-						const path = this.getNodeParameter('path', itemIndex, '') as string;
+                                        case 'get': {
+                                                const path = this.getNodeParameter('path', itemIndex, '') as string;
 
-						const response = await doRequest({
-							method: 'GET',
-							url: normalizePath(path),
-							// ensure raw bytes for binary output
-							encoding: null as any,
-							returnFullResponse: true,
-						});
+                                                const response = await doRequest({
+                                                        method: 'GET',
+                                                        url: normalizePath(path),
+                                                        // ensure raw bytes for binary output
+                                                        returnFullResponse: true,
+                                                } as Parameters<typeof this.helpers.httpRequest>[0]);
 
-						const dataBuffer = Buffer.isBuffer(response.data)
-							? (response.data as Buffer)
-							: Buffer.from(response.data as any);
-						const contentType = response.headers['content-type'] as string | undefined;
-						const contentLength = response.headers['content-length'] as string | undefined;
-						const lastModified = response.headers['last-modified'] as string | undefined;
-						const etag = response.headers['etag'] as string | undefined;
-						const segs = normalizePath(path).split('/').filter(Boolean);
-						const fileName = segs[segs.length - 1] || 'file';
-						const helpersAny = this.helpers as any;
-						const binary = typeof helpersAny.prepareBinaryData === 'function'
-							? await helpersAny.prepareBinaryData(dataBuffer, fileName, contentType)
-							: { data: dataBuffer.toString('base64'), fileName, mimeType: contentType ?? 'application/octet-stream' } as any;
+                                                const rawData =
+                                                        (response.data ?? response.body) as
+                                                                | Buffer
+                                                                | ArrayBuffer
+                                                                | string
+                                                                | undefined;
+                                                if (rawData === undefined) {
+                                                        throw new NodeOperationError(
+                                                                this.getNode(),
+                                                                `No data returned from WebDAV for path "${path}"`,
+                                                                { itemIndex },
+                                                        );
+                                                }
 
-						returnItems.push({
-							json: {
-								path,
-								contentType: contentType ?? 'application/octet-stream',
-								contentLength: contentLength ? Number(contentLength) : dataBuffer.length,
-								lastModified: lastModified ?? null,
-								etag: etag ?? null,
-								statusCode: response.status,
-							},
-							binary: { data: binary },
-						});
-						break;
-					}
+                                                let dataBuffer: Buffer;
+                                                if (Buffer.isBuffer(rawData)) {
+                                                    dataBuffer = rawData as Buffer;
+                                                } else if (typeof rawData === 'string') {
+                                                    dataBuffer = Buffer.from(rawData, 'utf8');
+                                                } else if (rawData instanceof ArrayBuffer) {
+                                                    dataBuffer = Buffer.from(new Uint8Array(rawData));
+                                                } else {
+                                                    throw new NodeOperationError(
+                                                        this.getNode(),
+                                                        `Unexpected data type returned from WebDAV for path "${path}": ${typeof rawData}`,
+                                                        { itemIndex },
+                                                    );
+                                                }
+                                                const contentType = response.headers['content-type'] as string | undefined;
+                                                if (
+                                                        contentType &&
+                                                        contentType.toLowerCase().includes('application/json')
+                                                ) {
+                                                        throw new NodeOperationError(
+                                                                this.getNode(),
+                                                                `Expected binary response but received JSON from WebDAV for path "${path}"`,
+                                                                { itemIndex },
+                                                        );
+                                                }
+                                                const contentLength = response.headers['content-length'] as string | undefined;
+                                                const lastModified = response.headers['last-modified'] as string | undefined;
+                                                const etag = response.headers['etag'] as string | undefined;
+                                                const segs = normalizePath(path).split('/').filter(Boolean);
+                                                const fileName = segs[segs.length - 1] || 'file';
+                                                const binary = await this.helpers.prepareBinaryData(
+                                                        dataBuffer,
+                                                        fileName,
+                                                        contentType,
+                                                );
+
+                                                returnItems.push({
+                                                        json: {
+                                                                path,
+                                                                contentType: contentType ?? 'application/octet-stream',
+                                                                contentLength: contentLength
+                                                                        ? Number(contentLength)
+                                                                        : dataBuffer.length,
+                                                                lastModified: lastModified ?? null,
+                                                                etag: etag ?? null,
+                                                                statusCode: response.status,
+                                                        },
+                                                        binary: { data: binary },
+                                                });
+                                                break;
+                                        }
 					case 'put': {
 						const path = this.getNodeParameter('path', itemIndex, '') as string;
 						const binaryPropertyName = this.getNodeParameter('binaryPropertyName', itemIndex, 'data') as string;
