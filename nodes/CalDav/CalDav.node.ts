@@ -69,6 +69,9 @@ export class CalDav implements INodeType {
 			);
 		}
 
+		// Normalize base root for any manual URL composition (no trailing slash)
+		const baseRoot = baseUrl.replace(/\/$/, '');
+
 		// Helper to normalize and encode DAV paths (handles spaces and special chars)
 		const normalizePath = (p: string): string => {
 			if (!p || p === '/') return '/';
@@ -111,6 +114,19 @@ export class CalDav implements INodeType {
 
 				const doRequest = async (opts: Parameters<typeof this.helpers.httpRequest>[0]) => {
 					try {
+						// Compose absolute URL when only a path is provided
+						const urlStr = String((opts as any)?.url ?? '');
+						if (!/^https?:\/\//i.test(urlStr)) {
+							(opts as any).url = `${baseRoot}${normalizePath(urlStr)}`;
+							delete (opts as any).baseURL;
+						}
+						const hAny = this.helpers as any;
+						if (typeof hAny.httpRequestWithAuthentication === 'function') {
+							return await hAny.httpRequestWithAuthentication.call(this, 'davApi', opts as any);
+						}
+						if (typeof hAny.requestWithAuthentication === 'function') {
+							return await hAny.requestWithAuthentication.call(this, 'davApi', opts as any);
+						}
 						return await this.helpers.httpRequest(opts as any);
 					} catch (e: any) {
 						const u = (opts as any)?.url;
