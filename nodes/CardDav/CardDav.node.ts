@@ -91,7 +91,32 @@ export class CardDav implements INodeType {
 				})
 				.join('/');
 			return `/${encoded}`;
-		};		for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
+		};
+
+		// Decode XML/HTML entities in server responses (e.g. &#13; -> CR)
+		const decodeXmlEntities = (input: string): string => {
+			return input.replace(/&(lt|gt|amp|quot|apos);|&#x([0-9A-Fa-f]+);|&#(\d+);/g, (_m, n, hx, dx) => {
+				if (n) {
+					switch (n) {
+						case 'lt':
+							return '<';
+						case 'gt':
+							return '>';
+						case 'amp':
+							return '&';
+						case 'quot':
+							return '"';
+						case 'apos':
+							return "'";
+					}
+				}
+				if (hx) return String.fromCharCode(parseInt(hx, 16));
+				if (dx) return String.fromCharCode(parseInt(dx, 10));
+				return _m;
+			});
+		};
+
+		for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
 			try {
 				const operation = this.getNodeParameter('operation', itemIndex) as string;
 				const item = items[itemIndex];
@@ -254,10 +279,14 @@ export class CardDav implements INodeType {
 								const addressDataMatch = responseXml.match(/<(?:\w+:)?address-data\b[^>]*>([\s\S]*?)<\/(?:\w+:)?address-data>/i);
 
 								if (hrefMatch && addressDataMatch) {
+									// Decode entities (iCloud sends CR as &#13;). Normalize to CRLF where possible
+									let vcard = decodeXmlEntities(addressDataMatch[1]);
+									// Ensure CRLF line endings: replace lone \n or \r with \r\n
+									vcard = vcard.replace(/\r(?!\n)/g, '\r\n').replace(/(?<!\r)\n/g, '\r\n');
 									contacts.push({
 										href: decodeURIComponent(hrefMatch[1]),
 										etag: etagMatch ? etagMatch[1] : null,
-										addressData: addressDataMatch[1],
+										addressData: vcard,
 									});
 								}
 							}
