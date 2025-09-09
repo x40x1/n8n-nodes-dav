@@ -56,7 +56,13 @@ export class DavApi implements ICredentialType {
 			method: 'PROPFIND' as any,
 			headers: {
 				Depth: '0',
+				'Content-Type': 'application/xml',
 			},
+			body:
+				'<?xml version="1.0" encoding="utf-8"?>' +
+				'<d:propfind xmlns:d="DAV:">' +
+				'<d:prop><d:current-user-principal/></d:prop>' +
+				'</d:propfind>',
 		},
 	};
 }

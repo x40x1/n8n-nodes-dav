@@ -167,14 +167,14 @@ export class CardDav implements INodeType {
 
 						const parseAddressBooksResponse = (xmlData: string): any[] => {
 							const addressBooks: any[] = [];
-							const responseRegex = /<D:response[^>]*>(.*?)<\/D:response>/gs;
+							const responseRegex = /<(?:\w+:)?response\b[^>]*>([\s\S]*?)<\/(?:\w+:)?response>/gi;
 							let match;
 
 							while ((match = responseRegex.exec(xmlData)) !== null) {
 								const responseXml = match[1];
-								const hrefMatch = responseXml.match(/<D:href[^>]*>(.*?)<\/D:href>/);
-								const displayNameMatch = responseXml.match(/<D:displayname[^>]*>(.*?)<\/D:displayname>/);
-								const descriptionMatch = responseXml.match(/<C:addressbook-description[^>]*>(.*?)<\/C:addressbook-description>/);
+								const hrefMatch = responseXml.match(/<(?:\w+:)?href\b[^>]*>([\s\S]*?)<\/(?:\w+:)?href>/i);
+								const displayNameMatch = responseXml.match(/<(?:\w+:)?displayname\b[^>]*>([\s\S]*?)<\/(?:\w+:)?displayname>/i);
+								const descriptionMatch = responseXml.match(/<(?:\w+:)?addressbook-description\b[^>]*>([\s\S]*?)<\/(?:\w+:)?addressbook-description>/i);
 
 								if (hrefMatch) {
 									addressBooks.push({
@@ -188,8 +188,9 @@ export class CardDav implements INodeType {
 							return addressBooks;
 						};
 
-						item.json.addressBooks = parseAddressBooksResponse(response.data);
-						item.json.statusCode = response.status;
+						const bodyData = (response.data ?? response.body) as string;
+						item.json.addressBooks = parseAddressBooksResponse(bodyData);
+						item.json.statusCode = response.statusCode ?? response.status;
 						break;
 					}
 					case 'getContacts': {
@@ -229,26 +230,28 @@ export class CardDav implements INodeType {
 	</D:prop>${filterXml}
 </C:addressbook-query>`;
 
-						const response = await doRequest({
-							method: 'REPORT' as any,
-							url: addressBookPath,
-							body: xmlBody,
-							headers: {
-								'Content-Type': 'application/xml',
-							},
-							returnFullResponse: true,
-						});
+                            const response = await doRequest({
+                                method: 'REPORT' as any,
+                                url: addressBookPath,
+                                body: xmlBody,
+                                headers: {
+                                        'Content-Type': 'application/xml',
+                                        // iCloud expects Depth: 1 for addressbook-query to list members
+                                        Depth: '1',
+                                },
+                                returnFullResponse: true,
+                            });
 
 						const parseContactsResponse = (xmlData: string): any[] => {
 							const contacts: any[] = [];
-							const responseRegex = /<D:response[^>]*>(.*?)<\/D:response>/gs;
+							const responseRegex = /<(?:\w+:)?response\b[^>]*>([\s\S]*?)<\/(?:\w+:)?response>/gi;
 							let match;
 
 							while ((match = responseRegex.exec(xmlData)) !== null) {
 								const responseXml = match[1];
-								const hrefMatch = responseXml.match(/<D:href[^>]*>(.*?)<\/D:href>/);
-								const etagMatch = responseXml.match(/<D:getetag[^>]*>(.*?)<\/D:getetag>/);
-								const addressDataMatch = responseXml.match(/<C:address-data[^>]*>(.*?)<\/C:address-data>/s);
+								const hrefMatch = responseXml.match(/<(?:\w+:)?href\b[^>]*>([\s\S]*?)<\/(?:\w+:)?href>/i);
+								const etagMatch = responseXml.match(/<(?:\w+:)?getetag\b[^>]*>([\s\S]*?)<\/(?:\w+:)?getetag>/i);
+								const addressDataMatch = responseXml.match(/<(?:\w+:)?address-data\b[^>]*>([\s\S]*?)<\/(?:\w+:)?address-data>/i);
 
 								if (hrefMatch && addressDataMatch) {
 									contacts.push({
@@ -262,8 +265,9 @@ export class CardDav implements INodeType {
 							return contacts;
 						};
 
-						item.json.contacts = parseContactsResponse(response.data);
-						item.json.statusCode = response.status;
+						const bodyData = (response.data ?? response.body) as string;
+						item.json.contacts = parseContactsResponse(bodyData);
+						item.json.statusCode = response.statusCode ?? response.status;
 						break;
 					}
 					case 'createContact': {
